@@ -11,6 +11,7 @@ import {
   useMarkAllAsReadMutation 
 } from '../../api/notificationApi';
 import { useGetMeQuery } from '../../api/userApi';
+import { baseApi } from '../../api/baseApi';
 
 export const Header = () => {
   const dispatch = useDispatch();
@@ -33,6 +34,7 @@ export const Header = () => {
 
   const handleLogout = () => {
     dispatch(logout());
+    dispatch(baseApi.util.resetApiState());
     navigate('/login');
   };
 

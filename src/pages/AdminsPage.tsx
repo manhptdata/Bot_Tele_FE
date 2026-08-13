@@ -6,7 +6,7 @@ import {
   useDeleteUserMutation,
   useGetMeQuery 
 } from '../api/userApi';
-import { UserCog, Plus, Search, Edit2, ShieldAlert, Shield, Lock, Unlock } from 'lucide-react';
+import { UserCog, Plus, Search, Edit2, ShieldAlert, Shield, Lock, Unlock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const AdminsPage = () => {
@@ -30,6 +30,8 @@ export const AdminsPage = () => {
     role: 'STAFF',
     isActive: true,
   });
+
+  const [showPassword, setShowPassword] = useState(false);
 
   const currentUser = meData;
 
@@ -292,13 +294,22 @@ export const AdminsPage = () => {
                 <label className="block text-sm text-gray-400 mb-1">
                   Mật khẩu {editingUser && '(Để trống nếu không đổi)'}
                 </label>
-                <input
-                  type="password"
-                  required={!editingUser}
-                  value={formData.password}
-                  onChange={e => setFormData({...formData, password: e.target.value})}
-                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required={!editingUser}
+                    value={formData.password}
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div>

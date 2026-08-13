@@ -29,6 +29,13 @@ export interface UserUpdateRequest {
   telegramChatId?: string;
 }
 
+export interface UserProfileUpdateRequest {
+  fullName: string;
+  email?: string;
+  telegramChatId?: string;
+  newPassword?: string;
+}
+
 export interface ChangePasswordRequest {
   oldPassword?: string;
   newPassword?: string;
@@ -63,7 +70,7 @@ export const userApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['User'],
     }),
-    updateMe: builder.mutation<User, UserUpdateRequest>({
+    updateMe: builder.mutation<User, UserProfileUpdateRequest>({
       query: (data) => ({
         url: '/users/me',
         method: 'PUT',

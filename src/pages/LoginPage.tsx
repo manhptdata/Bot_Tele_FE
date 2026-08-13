@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { loginSuccess } from '../store/authSlice';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Bot, KeyRound, MessageCircle, ArrowLeft } from 'lucide-react';
+import { Bot, KeyRound, MessageCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage = () => {
   const [view, setView] = useState<'LOGIN' | 'FORGOT_STEP_1' | 'FORGOT_STEP_2'>('LOGIN');
@@ -12,6 +12,7 @@ export const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [login, { isLoading: isLoggingIn }] = useLoginMutation();
   const [forgotPassword, { isLoading: isRequestingOtp }] = useForgotPasswordMutation();
@@ -103,14 +104,23 @@ export const LoginPage = () => {
                     Quên mật khẩu?
                   </button>
                 </div>
-                <input
-                  type="password"
-                  required
-                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 transition-all pr-10"
+                    placeholder="Nhập mật khẩu"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
               <button
                 type="submit"
@@ -198,14 +208,23 @@ export const LoginPage = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Mật khẩu mới</label>
-                <input
-                  type="password"
-                  required
-                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                  placeholder="Ít nhất 6 ký tự"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all pr-10"
+                    placeholder="Ít nhất 6 ký tự"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
               <button
                 type="submit"
