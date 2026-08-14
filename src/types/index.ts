@@ -94,6 +94,7 @@ export interface PaymentConfig {
   bankName: string;
   accountNumber: string;
   accountHolder: string;
+  webhookProvider?: string;
   webhookApiKey: string;
   isDefault: boolean;
   bankFeeType?: 'FIXED' | 'PERCENT';
