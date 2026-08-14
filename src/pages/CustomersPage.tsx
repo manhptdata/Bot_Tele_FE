@@ -35,7 +35,7 @@ export const CustomersPage: React.FC = () => {
   const isDeletedParam =
     statusTab === 'ACTIVE' ? false : statusTab === 'DELETED' ? true : undefined;
 
-  const { data, isLoading, refetch } = useGetCustomersQuery({
+  const { data, isLoading } = useGetCustomersQuery({
     keyword: keyword.trim() || undefined,
     isDeleted: isDeletedParam,
     page,

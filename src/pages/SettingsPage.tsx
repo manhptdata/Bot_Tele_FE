@@ -95,8 +95,6 @@ export const SettingsPage = () => {
     try {
       await updateMe({
         fullName: currentUser.fullName,
-        role: currentUser.role,
-        isActive: currentUser.isActive,
         telegramChatId: telegramId
       }).unwrap();
       toast.success('Cập nhật ID Telegram thành công!');
@@ -301,7 +299,7 @@ export const SettingsPage = () => {
                       step="any"
                       min="0"
                       name="bankFeeAmount"
-                      value={formData.bankFeeAmount === 0 || formData.bankFeeAmount === '0' ? '' : formData.bankFeeAmount}
+                      value={formData.bankFeeAmount === 0 || String(formData.bankFeeAmount) === '0' ? '' : formData.bankFeeAmount}
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => {
                         const val = e.target.value;

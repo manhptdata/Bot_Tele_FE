@@ -61,7 +61,7 @@ fe_admin/
 
 ## 📦 Build lên Môi trường Production
 
-Để đóng gói ra thư mục tĩnh (Static HTML/CSS/JS) chuẩn bị mang đi host (ví dụ: Nginx, Vercel, Netlify):
+Để đóng gói ra thư mục tĩnh (Static HTML/CSS/JS) chuẩn bị mang đi host (ví dụ: Nginx, Vercel, Netlify): 
 
 ```bash
 npm run build

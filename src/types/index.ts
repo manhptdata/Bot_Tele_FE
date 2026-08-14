@@ -56,6 +56,8 @@ export interface OrderItem {
 export interface OrderDetail {
   id: number;
   orderCode: string;
+  subtotalAmount?: number;
+  feeAmount?: number;
   totalAmount: number;
   status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
   deliveryMode: 'AUTO' | 'MANUAL';
