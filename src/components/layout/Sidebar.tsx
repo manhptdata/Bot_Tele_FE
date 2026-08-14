@@ -1,12 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Package, Users, ShoppingCart, Settings, FolderTree, Radio, UserCog, UserCircle } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, Settings, FolderTree, Radio, UserCog, UserCircle, Warehouse, Users } from 'lucide-react';
+
+
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/categories', label: 'Danh mục', icon: FolderTree },
   { path: '/products', label: 'Sản phẩm', icon: Package },
-  { path: '/accounts', label: 'Kho Account', icon: Users },
+  { path: '/accounts', label: 'Kho', icon: Warehouse },
   { path: '/orders', label: 'Đơn hàng', icon: ShoppingCart },
+  { path: '/customers', label: 'Khách hàng', icon: Users },
   { path: '/broadcast', label: 'Phát sóng', icon: Radio },
   { path: '/settings', label: 'Cấu hình', icon: Settings },
   { path: '/admins', label: 'Quản trị viên', icon: UserCog },
@@ -31,11 +34,10 @@ export const Sidebar = () => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-                isActive
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                  : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
-              }`}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                }`}
             >
               <Icon size={20} />
               <span className="font-medium">{item.label}</span>

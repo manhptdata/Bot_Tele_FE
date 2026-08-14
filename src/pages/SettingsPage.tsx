@@ -16,6 +16,8 @@ export const SettingsPage = () => {
     accountNumber: defaultConfig?.accountNumber || '',
     accountHolder: defaultConfig?.accountHolder || '',
     webhookApiKey: defaultConfig?.webhookApiKey || '',
+    bankFeeType: defaultConfig?.bankFeeType || 'FIXED',
+    bankFeeAmount: defaultConfig?.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
   });
 
   const [showApiKey, setShowApiKey] = useState(false);
@@ -52,6 +54,8 @@ export const SettingsPage = () => {
         accountNumber: defaultConfig.accountNumber,
         accountHolder: defaultConfig.accountHolder,
         webhookApiKey: defaultConfig.webhookApiKey || '',
+        bankFeeType: defaultConfig.bankFeeType || 'FIXED',
+        bankFeeAmount: defaultConfig.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
       });
     }
   }, [defaultConfig]);
@@ -74,7 +78,12 @@ export const SettingsPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createConfig({ ...formData, id: defaultConfig?.id, isDefault: true }).unwrap();
+      await createConfig({
+        ...formData,
+        bankFeeAmount: Number(formData.bankFeeAmount) || 0,
+        id: defaultConfig?.id,
+        isDefault: true
+      }).unwrap();
       toast.success('Lưu cấu hình thanh toán thành công!');
     } catch (err) {
       toast.error('Lỗi khi lưu cấu hình');
@@ -258,6 +267,68 @@ export const SettingsPage = () => {
                   >
                     {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
+                </div>
+              </div>
+
+              {/* Cấu hình Phí giao dịch Chuyển khoản ngân hàng */}
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60 space-y-3">
+                <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
+                  <span>💳</span> Phí giao dịch Chuyển khoản (Đẩy phí cho khách)
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Loại phí giao dịch
+                    </label>
+                    <select
+                      name="bankFeeType"
+                      value={formData.bankFeeType}
+                      onChange={(e) => setFormData({ ...formData, bankFeeType: e.target.value as 'FIXED' | 'PERCENT' })}
+                      className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    >
+                      <option value="FIXED">Số tiền cố định (VNĐ / đơn)</option>
+                      <option value="PERCENT">Phần trăm (% giá trị đơn)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Mức phí {formData.bankFeeType === 'PERCENT' ? '(%)' : '(VNĐ)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      name="bankFeeAmount"
+                      value={formData.bankFeeAmount === 0 || formData.bankFeeAmount === '0' ? '' : formData.bankFeeAmount}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormData({ ...formData, bankFeeAmount: val === '' ? '' : (isNaN(Number(val)) ? formData.bankFeeAmount : val) as any });
+                      }}
+                      placeholder="0"
+                      className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="text-xs text-slate-400 bg-slate-950/60 p-3 rounded-lg border border-slate-800 leading-relaxed">
+                  💡 <strong>Ví dụ tính phí:</strong> Khi khách mua đơn <strong className="text-white">100.000đ</strong> qua chuyển khoản ngân hàng $\rightarrow$ Phí cộng thêm:{' '}
+                  <strong className="text-amber-400">
+                    {formData.bankFeeType === 'PERCENT'
+                      ? `${((100000 * (Number(formData.bankFeeAmount) || 0)) / 100).toLocaleString('vi-VN')}đ (${formData.bankFeeAmount}%)`
+                      : `${(Number(formData.bankFeeAmount) || 0).toLocaleString('vi-VN')}đ`}
+                  </strong>
+                  {' '} $\rightarrow$ Tổng tiền VietQR khách cần thanh toán:{' '}
+                  <strong className="text-emerald-400">
+                    {(
+                      100000 +
+                      (formData.bankFeeType === 'PERCENT'
+                        ? (100000 * (Number(formData.bankFeeAmount) || 0)) / 100
+                        : Number(formData.bankFeeAmount) || 0)
+                    ).toLocaleString('vi-VN')}đ
+                  </strong>
                 </div>
               </div>
 

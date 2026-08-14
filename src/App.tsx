@@ -9,6 +9,7 @@ import { ProductsPage } from './pages/ProductsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { AccountsPage } from './pages/AccountsPage';
 import { OrdersPage } from './pages/OrdersPage';
+import { CustomersPage } from './pages/CustomersPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { BroadcastPage } from './pages/BroadcastPage';
 import { AdminsPage } from './pages/AdminsPage';
@@ -28,6 +29,7 @@ function App() {
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/accounts" element={<AccountsPage />} />
             <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/customers" element={<CustomersPage />} />
             <Route path="/broadcast" element={<BroadcastPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/admins" element={<AdminsPage />} />

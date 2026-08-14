@@ -8,15 +8,17 @@ import {
   useGetUnreadCountQuery, 
   useGetNotificationsQuery, 
   useMarkAsReadMutation, 
-  useMarkAllAsReadMutation 
+  useMarkAllAsReadMutation,
+  notificationApi
 } from '../../api/notificationApi';
 import { useGetMeQuery } from '../../api/userApi';
 import { baseApi } from '../../api/baseApi';
+import toast from 'react-hot-toast';
 
 export const Header = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
   const { data: meData } = useGetMeQuery();
   const currentUser = meData || user;
   
@@ -31,6 +33,54 @@ export const Header = () => {
 
   const [markAsRead] = useMarkAsReadMutation();
   const [markAllAsRead] = useMarkAllAsReadMutation();
+
+  // Thiết lập kết nối Real-time Server-Sent Events (SSE)
+  useEffect(() => {
+    if (!token || token === 'undefined' || token === 'null') return;
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+    const sseUrl = `${baseUrl}/admin/notifications/stream?token=${encodeURIComponent(token)}`;
+    const eventSource = new EventSource(sseUrl);
+
+    eventSource.addEventListener('NOTIFICATION', (event) => {
+      try {
+        const notif = JSON.parse(event.data);
+        // Tự động làm mới cache dữ liệu thông báo và số lượng chưa đọc
+        dispatch(notificationApi.util.invalidateTags(['Notification']));
+        
+        // Hiển thị Toast thông báo tức thì trên giao diện
+        toast.custom((t) => (
+          <div
+            onClick={() => {
+              toast.dismiss(t.id);
+              if (notif.type === 'ORDER') navigate('/orders');
+            }}
+            className={`${
+              t.visible ? 'animate-enter' : 'animate-leave'
+            } max-w-md w-full bg-slate-900 border-2 border-blue-500/80 shadow-2xl rounded-xl pointer-events-auto flex p-4 cursor-pointer hover:bg-slate-800 transition-colors`}
+          >
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2.5 w-2.5 rounded-full bg-blue-400 animate-ping" />
+                <p className="text-sm font-bold text-white">{notif.title}</p>
+              </div>
+              <p className="mt-1 text-xs text-slate-300">{notif.message}</p>
+            </div>
+          </div>
+        ), { duration: 6000 });
+      } catch (err) {
+        console.error('Lỗi phân tích gói tin SSE:', err);
+      }
+    });
+
+    eventSource.onerror = () => {
+      // EventSource sẽ tự động thử kết nối lại khi mất mạng
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [token, dispatch, navigate]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -52,9 +102,7 @@ export const Header = () => {
     await markAsRead(id);
     setShowDropdown(false);
     if (type === 'ORDER') {
-      navigate('/orders'); // Hoặc có thể thêm param search mã đơn
-    } else if (type === 'DEPOSIT') {
-      // navigate('/wallets') or similar if needed
+      navigate('/orders');
     }
   };
 

@@ -73,6 +73,8 @@ export interface OrderDetail {
 export interface OrderTable {
   id: number;
   orderCode: string;
+  subtotalAmount?: number;
+  feeAmount?: number;
   totalAmount: number;
   status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
   deliveryMode: 'AUTO' | 'MANUAL';
@@ -92,4 +94,6 @@ export interface PaymentConfig {
   accountHolder: string;
   webhookApiKey: string;
   isDefault: boolean;
+  bankFeeType?: 'FIXED' | 'PERCENT';
+  bankFeeAmount?: number;
 }

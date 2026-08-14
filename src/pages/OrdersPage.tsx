@@ -95,7 +95,14 @@ export const OrdersPage = () => {
                       <div className="text-blue-300 font-medium">{order.customer.firstName}</div>
                       <div className="text-xs text-slate-400">@{order.customer.username}</div>
                     </td>
-                    <td className="p-4 text-green-400 font-medium">{order.totalAmount.toLocaleString()}đ</td>
+                    <td className="p-4">
+                      <div className="text-green-400 font-medium">{order.totalAmount.toLocaleString()}đ</div>
+                      {order.feeAmount && order.feeAmount > 0 ? (
+                        <div className="text-[11px] text-amber-400/80">
+                          (Gồm +{order.feeAmount.toLocaleString()}đ phí CK)
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="p-4 text-sm text-slate-300">
                       <div className="flex items-center space-x-1">
                         <span>{order.paymentMethod === 'BANK_TRANSFER' ? '🏦 Ngân hàng' : '💳 Ví'}</span>
@@ -160,12 +167,12 @@ export const OrdersPage = () => {
 
       {/* Chi tiết đơn hàng Modal */}
       {selectedOrderId && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="glass w-full max-w-3xl rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800/50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <ShoppingCart size={24} className="text-blue-400" />
-                Chi Tiết Đơn Hàng {orderDetail ? `#${orderDetail.orderCode}` : ''}
+                <ShoppingCart className="text-blue-500" />
+                Chi tiết đơn hàng #{orderDetail?.orderCode}
               </h2>
               <button onClick={() => setSelectedOrderId(null)} className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-slate-700 transition-colors">
                 <X size={24} />
@@ -197,7 +204,13 @@ export const OrdersPage = () => {
                         <Wallet size={18} /> Thanh Toán
                       </div>
                       <div className="space-y-2 text-sm">
-                        <p><span className="text-slate-400">Tổng tiền:</span> <span className="text-green-400 font-bold text-base">{orderDetail.totalAmount.toLocaleString()}đ</span></p>
+                        {orderDetail.subtotalAmount && orderDetail.feeAmount && orderDetail.feeAmount > 0 ? (
+                          <>
+                            <p><span className="text-slate-400">Tiền hàng:</span> <span className="text-white font-medium">{orderDetail.subtotalAmount.toLocaleString()}đ</span></p>
+                            <p><span className="text-slate-400">Phí chuyển khoản:</span> <span className="text-amber-400 font-medium">+{orderDetail.feeAmount.toLocaleString()}đ</span></p>
+                          </>
+                        ) : null}
+                        <p><span className="text-slate-400">Tổng thanh toán:</span> <span className="text-green-400 font-bold text-base">{orderDetail.totalAmount.toLocaleString()}đ</span></p>
                         <p><span className="text-slate-400">Phương thức:</span> <span className="text-white">{orderDetail.paymentMethod === 'BANK_TRANSFER' ? 'Chuyển khoản' : 'Ví'}</span></p>
                         <p>
                           <span className="text-slate-400 mr-2">Trạng thái:</span>
