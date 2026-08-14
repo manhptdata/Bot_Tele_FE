@@ -23,6 +23,10 @@ import {
   UserCheck,
   UserX,
   X,
+  Eye,
+  Copy,
+  Check,
+  User,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -50,6 +54,10 @@ export const CustomersPage: React.FC = () => {
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  // Customer Detail modal state
+  const [viewCustomer, setViewCustomer] = useState<TelegramCustomer | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
 
   // Hard delete modal
   const [hardDeleteTarget, setHardDeleteTarget] = useState<TelegramCustomer | null>(null);
@@ -316,11 +324,12 @@ export const CustomersPage: React.FC = () => {
                   return (
                     <tr
                       key={customer.id}
-                      className={`hover:bg-slate-800/40 transition-colors ${
+                      onClick={() => setViewCustomer(customer)}
+                      className={`hover:bg-slate-800/60 cursor-pointer transition-colors ${
                         isSelected ? 'bg-blue-900/20' : ''
                       } ${customer.isDeleted ? 'opacity-60 bg-red-950/10' : ''}`}
                     >
-                      <td className="p-4 text-center">
+                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -339,6 +348,7 @@ export const CustomersPage: React.FC = () => {
                             href={`https://t.me/${customer.username}`}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
                             className="text-blue-400 hover:text-blue-300 font-medium inline-flex items-center gap-1 hover:underline"
                           >
                             @{customer.username}
@@ -386,8 +396,16 @@ export const CustomersPage: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="p-4 text-center">
+                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setViewCustomer(customer)}
+                            title="Xem chi tiết khách hàng"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 transition-colors"
+                          >
+                            <Eye size={16} />
+                          </button>
+
                           {!customer.isDeleted ? (
                             <button
                               onClick={() => handleSoftDelete(customer.id)}
@@ -437,6 +455,151 @@ export const CustomersPage: React.FC = () => {
           />
         )}
       </div>
+
+      {/* Modal Chi Tiết Khách Hàng */}
+      {viewCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6 animate-in zoom-in-95">
+            <div className="flex items-start justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                  <User size={26} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {[viewCustomer.firstName, viewCustomer.lastName].filter(Boolean).join(' ') || 'Khách hàng ẩn danh'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {viewCustomer.username ? `@${viewCustomer.username}` : 'Không có username'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewCustomer(null)}
+                className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Thẻ thông tin định danh */}
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Users size={14} className="text-blue-400" />
+                  Thông tin định danh Telegram
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-slate-400 block text-xs">Telegram ID:</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono font-bold text-white bg-slate-900 px-2.5 py-1 rounded border border-slate-700/60">
+                        {viewCustomer.telegramId}
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(String(viewCustomer.telegramId));
+                          setCopiedId(true);
+                          toast.success('Đã sao chép Telegram ID');
+                          setTimeout(() => setCopiedId(false), 2000);
+                        }}
+                        className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-colors"
+                        title="Sao chép ID"
+                      >
+                        {copiedId ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-xs">Trạng thái:</span>
+                    <span className="mt-1 inline-block">
+                      {viewCustomer.isDeleted ? (
+                        <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-xs">
+                          Đã xóa mềm
+                        </span>
+                      ) : (
+                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-xs">
+                          Đang hoạt động
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Thẻ thống kê & Hoạt động */}
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 space-y-3">
+                <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <ShoppingBag size={14} className="text-emerald-400" />
+                  Hoạt động mua hàng
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <span className="text-xs text-slate-400 block">Tổng đơn hàng</span>
+                    <span className="text-lg font-bold text-white mt-1 flex items-center gap-1.5">
+                      <ShoppingBag size={16} className="text-indigo-400" />
+                      {viewCustomer.totalOrders} đơn
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800">
+                    <span className="text-xs text-slate-400 block">Tổng chi tiêu</span>
+                    <span className="text-lg font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                      <CircleDollarSign size={16} />
+                      {formatMoney(viewCustomer.totalSpent)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-800/80 pt-3 space-y-2 text-xs text-slate-400">
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar size={13} className="text-slate-500" />
+                      Bắt đầu tương tác:
+                    </span>
+                    <span className="text-slate-300 font-medium">{formatDate(viewCustomer.firstSeen)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="flex items-center gap-1.5">
+                      <Clock size={13} className="text-blue-400" />
+                      Hoạt động lần cuối:
+                    </span>
+                    <span className="text-slate-300 font-medium">{formatDate(viewCustomer.lastSeen)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              {viewCustomer.username ? (
+                <a
+                  href={`https://t.me/${viewCustomer.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 border border-blue-500/30"
+                >
+                  <ExternalLink size={15} />
+                  Mở Telegram chat
+                </a>
+              ) : (
+                <span className="text-xs text-slate-500 italic">Khách chưa đặt Username Telegram</span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setViewCustomer(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Cảnh báo Xóa Cứng (Hard Delete Confirmation Modal) */}
       {hardDeleteTarget && (

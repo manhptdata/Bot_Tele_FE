@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGetPaymentConfigsQuery, useCreatePaymentConfigMutation } from '../api/paymentApi';
 import { useChangePasswordMutation, useGetMeQuery, useUpdateMeMutation } from '../api/userApi';
-import { Save, CreditCard, Loader2, ChevronDown, Search, KeyRound, Eye, EyeOff, MessageCircle } from 'lucide-react';
+import { Save, CreditCard, Loader2, ChevronDown, ChevronUp, Search, KeyRound, Eye, EyeOff, MessageCircle, Clock, Sliders, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const SettingsPage = () => {
@@ -17,10 +17,14 @@ export const SettingsPage = () => {
     accountHolder: defaultConfig?.accountHolder || '',
     webhookProvider: defaultConfig?.webhookProvider || 'SEPAY',
     webhookApiKey: defaultConfig?.webhookApiKey || '',
+    paymentTimeoutMinutes: defaultConfig?.paymentTimeoutMinutes !== undefined ? defaultConfig.paymentTimeoutMinutes : 5,
     bankFeeType: defaultConfig?.bankFeeType || 'FIXED',
     bankFeeAmount: defaultConfig?.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
   });
 
+  const [isBankConfigOpen, setIsBankConfigOpen] = useState(true);
+  const [isWebhookConfigOpen, setIsWebhookConfigOpen] = useState(true);
+  const [isOrderConfigOpen, setIsOrderConfigOpen] = useState(true);
   const [showApiKey, setShowApiKey] = useState(false);
 
   const { data: currentUser } = useGetMeQuery();
@@ -56,6 +60,7 @@ export const SettingsPage = () => {
         accountHolder: defaultConfig.accountHolder,
         webhookProvider: defaultConfig.webhookProvider || 'SEPAY',
         webhookApiKey: defaultConfig.webhookApiKey || '',
+        paymentTimeoutMinutes: defaultConfig.paymentTimeoutMinutes !== undefined ? defaultConfig.paymentTimeoutMinutes : 5,
         bankFeeType: defaultConfig.bankFeeType || 'FIXED',
         bankFeeAmount: defaultConfig.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
       });
@@ -82,6 +87,7 @@ export const SettingsPage = () => {
     try {
       await createConfig({
         ...formData,
+        paymentTimeoutMinutes: Number(formData.paymentTimeoutMinutes) || 5,
         bankFeeAmount: Number(formData.bankFeeAmount) || 0,
         id: defaultConfig?.id,
         isDefault: true
@@ -99,21 +105,18 @@ export const SettingsPage = () => {
         fullName: currentUser.fullName,
         telegramChatId: telegramId
       }).unwrap();
-      toast.success('Cập nhật ID Telegram thành công!');
+      toast.success('Đã cập nhật Telegram ID nhận thông báo thành công!');
     } catch (err) {
-      toast.error('Lỗi khi cập nhật ID Telegram');
+      toast.error('Lỗi khi cập nhật Telegram ID');
     }
   };
 
-  const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation();
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
-  const [showOldPassword, setShowOldPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation();
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
@@ -141,18 +144,22 @@ export const SettingsPage = () => {
     }
   };
 
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-2xl font-bold text-white">Cấu hình Hệ thống</h1>
-        <p className="text-gray-400 mt-1">Cài đặt thông tin nhận tiền và Webhook tự động</p>
+        <p className="text-gray-400 mt-1">Cài đặt thông tin nhận tiền, Webhook tự động và xử lý đơn hàng</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="glass p-6 rounded-xl border border-slate-700/50">
           <div className="flex items-center space-x-2 mb-6 border-b border-slate-700/50 pb-4">
             <CreditCard className="text-blue-400" />
-            <h2 className="text-xl font-semibold text-white">Thông tin Ngân hàng</h2>
+            <h2 className="text-xl font-semibold text-white">Cấu hình Thanh toán</h2>
           </div>
 
           {isLoading ? (
@@ -160,200 +167,258 @@ export const SettingsPage = () => {
               <Loader2 className="animate-spin text-slate-500" size={32} />
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="relative" ref={dropdownRef}>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Mã Ngân hàng (BIN/Tên viết tắt)</label>
-
-                <div
-                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus-within:ring-2 focus-within:ring-blue-500 cursor-pointer flex justify-between items-center"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* ACCORDION 1: THÔNG TIN TÀI KHOẢN NGÂN HÀNG */}
+              <div className="bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden transition-all duration-200">
+                <button
+                  type="button"
+                  onClick={() => setIsBankConfigOpen(!isBankConfigOpen)}
+                  className="w-full p-4 flex items-center justify-between bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors"
                 >
-                  <span className={formData.bankName ? 'text-white' : 'text-gray-400'}>
-                    {formData.bankName
-                      ? banks.find(b => b.shortName === formData.bankName)?.name || formData.bankName
-                      : '-- Chọn Ngân hàng --'}
-                  </span>
-                  <ChevronDown size={18} className="text-gray-400" />
-                </div>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
+                      <CreditCard size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Thông tin Tài khoản Ngân hàng</h4>
+                      <p className="text-xs text-slate-400">Tài khoản nhận tiền và tạo mã VietQR</p>
+                    </div>
+                  </div>
+                  <div className="text-slate-400">
+                    {isBankConfigOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </button>
 
-                {isDropdownOpen && (
-                  <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                    <div className="p-2 border-b border-slate-700/50 flex items-center space-x-2 bg-slate-800/80 sticky top-0">
-                      <Search size={16} className="text-gray-400" />
+                {isBankConfigOpen && (
+                  <div className="p-4 space-y-4 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="relative" ref={dropdownRef}>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Mã Ngân hàng (BIN / Tên viết tắt)</label>
+
+                      <div
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus-within:ring-2 focus-within:ring-blue-500 cursor-pointer flex justify-between items-center text-sm"
+                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      >
+                        <span className={formData.bankName ? 'text-white font-medium' : 'text-gray-400'}>
+                          {formData.bankName
+                            ? banks.find(b => b.shortName === formData.bankName)?.name || formData.bankName
+                            : '-- Chọn Ngân hàng --'}
+                        </span>
+                        <ChevronDown size={18} className="text-gray-400" />
+                      </div>
+
+                      {isDropdownOpen && (
+                        <div className="absolute z-20 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                          <div className="p-2 border-b border-slate-700/50 flex items-center space-x-2 bg-slate-800/80 sticky top-0">
+                            <Search size={16} className="text-gray-400" />
+                            <input
+                              type="text"
+                              autoFocus
+                              placeholder="Tìm ngân hàng (VD: MB, Vietcombank...)"
+                              value={searchBank}
+                              onChange={(e) => setSearchBank(e.target.value)}
+                              className="w-full bg-transparent text-white focus:outline-none text-sm"
+                            />
+                          </div>
+                          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                            {banks
+                              .filter(bank =>
+                                bank.name.toLowerCase().includes(searchBank.toLowerCase()) ||
+                                bank.shortName.toLowerCase().includes(searchBank.toLowerCase())
+                              )
+                              .map((bank: any) => (
+                                <div
+                                  key={bank.id}
+                                  className="px-4 py-2 hover:bg-blue-600/20 cursor-pointer text-sm text-slate-200 flex flex-col"
+                                  onClick={() => {
+                                    setFormData({ ...formData, bankName: bank.shortName });
+                                    setIsDropdownOpen(false);
+                                    setSearchBank('');
+                                  }}
+                                >
+                                  <span className="font-medium text-blue-400">{bank.shortName}</span>
+                                  <span className="text-xs text-slate-400">{bank.name}</span>
+                                </div>
+                              ))}
+                            {banks.filter(bank =>
+                              bank.name.toLowerCase().includes(searchBank.toLowerCase()) ||
+                              bank.shortName.toLowerCase().includes(searchBank.toLowerCase())
+                            ).length === 0 && (
+                              <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                                Không tìm thấy ngân hàng
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Số Tài Khoản</label>
                       <input
                         type="text"
-                        autoFocus
-                        placeholder="Tìm ngân hàng (VD: MB, Vietcombank...)"
-                        value={searchBank}
-                        onChange={(e) => setSearchBank(e.target.value)}
-                        className="w-full bg-transparent text-white focus:outline-none text-sm"
+                        name="accountNumber"
+                        required
+                        value={formData.accountNumber}
+                        onChange={handleChange}
+                        placeholder="Nhập số tài khoản ngân hàng"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
                       />
                     </div>
-                    <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                      {banks
-                        .filter(bank =>
-                          bank.name.toLowerCase().includes(searchBank.toLowerCase()) ||
-                          bank.shortName.toLowerCase().includes(searchBank.toLowerCase())
-                        )
-                        .map((bank: any) => (
-                          <div
-                            key={bank.id}
-                            className="px-4 py-2 hover:bg-blue-600/20 cursor-pointer text-sm text-slate-200 flex flex-col"
-                            onClick={() => {
-                              setFormData({ ...formData, bankName: bank.shortName });
-                              setIsDropdownOpen(false);
-                              setSearchBank('');
-                            }}
-                          >
-                            <span className="font-medium text-blue-400">{bank.shortName}</span>
-                            <span className="text-xs text-slate-400">{bank.name}</span>
-                          </div>
-                        ))}
-                      {banks.filter(bank =>
-                        bank.name.toLowerCase().includes(searchBank.toLowerCase()) ||
-                        bank.shortName.toLowerCase().includes(searchBank.toLowerCase())
-                      ).length === 0 && (
-                          <div className="px-4 py-3 text-sm text-slate-500 text-center">
-                            Không tìm thấy ngân hàng
-                          </div>
-                        )}
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Tên Chủ Tài Khoản</label>
+                      <input
+                        type="text"
+                        name="accountHolder"
+                        required
+                        value={formData.accountHolder}
+                        onChange={handleChange}
+                        placeholder="VIET HOA CHU KHONG DAU"
+                        className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase text-sm"
+                      />
                     </div>
                   </div>
                 )}
-
-                <p className="text-xs text-slate-500 mt-2">Dùng để tạo ảnh QR VietQR.</p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Số Tài Khoản</label>
-                <input
-                  type="text"
-                  name="accountNumber"
-                  required
-                  value={formData.accountNumber}
-                  onChange={handleChange}
-                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Tên Chủ Tài Khoản</label>
-                <input
-                  type="text"
-                  name="accountHolder"
-                  required
-                  value={formData.accountHolder}
-                  onChange={handleChange}
-                  placeholder="VIET HOA CHU KHONG DAU"
-                  className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
-                />
-              </div>
-
-              <div className="pt-2 border-t border-slate-700/50">
-                <label className="block text-sm font-medium text-slate-300 mb-1">Cổng thanh toán tự động (Webhook)</label>
-                <select
-                  name="webhookProvider"
-                  value={formData.webhookProvider}
-                  onChange={handleChange}
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer mb-3"
+              {/* ACCORDION 2: CỔNG THANH TOÁN TỰ ĐỘNG (WEBHOOK / SEPAY) */}
+              <div className="bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden transition-all duration-200">
+                <button
+                  type="button"
+                  onClick={() => setIsWebhookConfigOpen(!isWebhookConfigOpen)}
+                  className="w-full p-4 flex items-center justify-between bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors"
                 >
-                  <option value="NONE">Tắt (Admin tự xác nhận đơn thủ công)</option>
-                  <option value="SEPAY">SePay (sepay.vn) - Tự động đối soát & giao hàng</option>
-                </select>
-                <p className="text-xs text-slate-400 mb-4">
-                  {formData.webhookProvider === 'NONE' && 'Khi tắt, bạn sẽ phải tự kiểm tra app ngân hàng và bấm Đã Thanh Toán trên web để giao hàng.'}
-                  {formData.webhookProvider === 'SEPAY' && 'SePay sẽ tự động đối soát giao dịch và duyệt đơn ngay khi có tiền vào.'}
-                </p>
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-amber-600/20 text-amber-400 flex items-center justify-center">
+                      <Zap size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Cổng Thanh toán Tự động (Webhook)</h4>
+                      <p className="text-xs text-slate-400">Tích hợp SePay tự động đối soát và giao hàng</p>
+                    </div>
+                  </div>
+                  <div className="text-slate-400">
+                    {isWebhookConfigOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                  </div>
+                </button>
+
+                {isWebhookConfigOpen && (
+                  <div className="p-4 space-y-4 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">Cổng thanh toán tự động</label>
+                      <select
+                        name="webhookProvider"
+                        value={formData.webhookProvider}
+                        onChange={handleChange}
+                        className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer text-sm mb-2"
+                      >
+                        <option value="NONE">Tắt (Admin tự kiểm tra và duyệt đơn thủ công)</option>
+                        <option value="SEPAY">SePay (sepay.vn) - Tự động đối soát & giao hàng</option>
+                      </select>
+                      <p className="text-xs text-slate-400">
+                        {formData.webhookProvider === 'NONE' && 'Khi tắt, bạn sẽ phải tự kiểm tra app ngân hàng và bấm Đã Thanh Toán trên web để giao hàng.'}
+                        {formData.webhookProvider === 'SEPAY' && 'SePay sẽ tự động đối soát giao dịch và duyệt đơn ngay khi có tiền vào.'}
+                      </p>
+                    </div>
+
+                    {formData.webhookProvider === 'SEPAY' && (
+                      <div className="animate-in fade-in slide-in-from-top-2 duration-200 pt-2 border-t border-slate-800">
+                        <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                          <span>Webhook API Key</span>
+                          <a href="https://my.sepay.vn" target="_blank" rel="noreferrer" title="Đăng nhập SePay -> Chọn 'Tích hợp Webhook' ở menu bên trái để lấy mã API Key" className="text-xs text-blue-400 hover:underline">
+                            Lấy API Key ở đâu?
+                          </a>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showApiKey ? 'text' : 'password'}
+                            name="webhookApiKey"
+                            value={formData.webhookApiKey}
+                            onChange={handleChange}
+                            placeholder="Mật khẩu bí mật để nhận Webhook từ SePay"
+                            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 text-sm font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowApiKey(!showApiKey)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                          >
+                            {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {formData.webhookProvider === 'SEPAY' && (
-                <div className="animate-in fade-in slide-in-from-top-4 duration-300">
-                  <label className="block text-sm font-medium text-slate-300 mb-1 flex items-center justify-between">
-                    <span>Webhook API Key</span>
-                    <a href="https://my.sepay.vn" target="_blank" rel="noreferrer" title="Đăng nhập SePay -> Chọn 'Tích hợp Webhook' ở menu bên trái để lấy mã API Key" className="text-xs text-blue-400 hover:underline">
-                      Lấy API Key ở đâu?
-                    </a>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      name="webhookApiKey"
-                      value={formData.webhookApiKey}
-                      onChange={handleChange}
-                      placeholder="Mật khẩu bí mật để nhận Webhook từ SePay"
-                      className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
-                    >
-                      {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
+              {/* ACCORDION 3: CẤU HÌNH ĐƠN HÀNG & PHÍ GIAO DỊCH */}
+              <div className="bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden transition-all duration-200">
+                <button
+                  type="button"
+                  onClick={() => setIsOrderConfigOpen(!isOrderConfigOpen)}
+                  className="w-full p-4 flex items-center justify-between bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+                      <Sliders size={18} />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-white">Cấu hình Đơn hàng & Phí</h4>
+                      <p className="text-xs text-slate-400">Thời gian chờ & phí giao dịch</p>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {/* Cấu hình Phí giao dịch Chuyển khoản ngân hàng */}
-              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700/60 space-y-3">
-                <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
-                  <span>💳</span> Phí giao dịch Chuyển khoản (Đẩy phí cho khách)
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Loại phí giao dịch
-                    </label>
-                    <select
-                      name="bankFeeType"
-                      value={formData.bankFeeType}
-                      onChange={(e) => setFormData({ ...formData, bankFeeType: e.target.value as 'FIXED' | 'PERCENT' })}
-                      className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                    >
-                      <option value="FIXED">Số tiền cố định (VNĐ / đơn)</option>
-                      <option value="PERCENT">Phần trăm (% giá trị đơn)</option>
-                    </select>
+                  <div className="text-slate-400">
+                    {isOrderConfigOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                   </div>
+                </button>
 
-                  <div>
-                    <label className="block text-xs font-medium text-slate-300 mb-1">
-                      Mức phí {formData.bankFeeType === 'PERCENT' ? '(%)' : '(VNĐ)'}
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      name="bankFeeAmount"
-                      value={formData.bankFeeAmount === 0 || String(formData.bankFeeAmount) === '0' ? '' : formData.bankFeeAmount}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFormData({ ...formData, bankFeeAmount: val === '' ? '' : (isNaN(Number(val)) ? formData.bankFeeAmount : val) as any });
-                      }}
-                      placeholder="0"
-                      className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                    />
+                {isOrderConfigOpen && (
+                  <div className="p-4 space-y-4 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="space-y-1.5">
+                      <label className="block text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                        <Clock size={14} className="text-amber-400" />
+                        Thời gian chờ thanh toán (Phút)
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          min="1"
+                          max="120"
+                          name="paymentTimeoutMinutes"
+                          value={formData.paymentTimeoutMinutes}
+                          onChange={handleChange}
+                          className="w-24 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-center font-bold"
+                        />
+                        <span className="text-xs text-slate-400 leading-relaxed">
+                          Sau <strong className="text-amber-400">{formData.paymentTimeoutMinutes || 5} phút</strong>, mã QR sẽ tự động bị xóa khỏi chat.
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                      <label className="block text-xs font-semibold text-slate-200">Phí giao dịch (Khách chịu)</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <select
+                          name="bankFeeType"
+                          value={formData.bankFeeType}
+                          onChange={(e) => setFormData({ ...formData, bankFeeType: e.target.value as 'FIXED' | 'PERCENT' })}
+                          className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                        >
+                          <option value="FIXED">Cố định (VNĐ)</option>
+                          <option value="PERCENT">Phần trăm (%)</option>
+                        </select>
+                        <input
+                          type="number"
+                          name="bankFeeAmount"
+                          value={formData.bankFeeAmount}
+                          onChange={handleChange}
+                          className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-
-                <div className="text-xs text-slate-400 bg-slate-950/60 p-3 rounded-lg border border-slate-800 leading-relaxed">
-                  💡 <strong>Ví dụ tính phí:</strong> Khi khách mua đơn <strong className="text-white">100.000đ</strong> qua chuyển khoản ngân hàng $\rightarrow$ Phí cộng thêm:{' '}
-                  <strong className="text-amber-400">
-                    {formData.bankFeeType === 'PERCENT'
-                      ? `${((100000 * (Number(formData.bankFeeAmount) || 0)) / 100).toLocaleString('vi-VN')}đ (${formData.bankFeeAmount}%)`
-                      : `${(Number(formData.bankFeeAmount) || 0).toLocaleString('vi-VN')}đ`}
-                  </strong>
-                  {' '} $\rightarrow$ Tổng tiền VietQR khách cần thanh toán:{' '}
-                  <strong className="text-emerald-400">
-                    {(
-                      100000 +
-                      (formData.bankFeeType === 'PERCENT'
-                        ? (100000 * (Number(formData.bankFeeAmount) || 0)) / 100
-                        : Number(formData.bankFeeAmount) || 0)
-                    ).toLocaleString('vi-VN')}đ
-                  </strong>
-                </div>
+                )}
               </div>
 
               <div className="pt-4 border-t border-slate-700/50">

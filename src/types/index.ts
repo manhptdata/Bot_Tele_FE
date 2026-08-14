@@ -97,6 +97,7 @@ export interface PaymentConfig {
   webhookProvider?: string;
   webhookApiKey: string;
   isDefault: boolean;
+  paymentTimeoutMinutes?: number;
   bankFeeType?: 'FIXED' | 'PERCENT';
   bankFeeAmount?: number;
 }

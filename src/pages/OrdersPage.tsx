@@ -89,7 +89,11 @@ export const OrdersPage = () => {
                 </tr>
               ) : (
                 orders.map((order) => (
-                  <tr key={order.id} className="border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors">
+                  <tr 
+                    key={order.id} 
+                    onClick={() => setSelectedOrderId(order.id)}
+                    className="border-b border-slate-700/20 hover:bg-slate-800/60 cursor-pointer transition-colors"
+                  >
                     <td className="p-4 font-mono font-medium text-white">{order.orderCode}</td>
                     <td className="p-4">
                       <div className="text-blue-300 font-medium">{order.customer.firstName}</div>

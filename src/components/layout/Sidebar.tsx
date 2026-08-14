@@ -7,7 +7,7 @@ const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/categories', label: 'Danh mục', icon: FolderTree },
   { path: '/products', label: 'Sản phẩm', icon: Package },
-  { path: '/accounts', label: 'Kho', icon: Warehouse },
+  { path: '/accounts', label: 'Nhập kho', icon: Warehouse },
   { path: '/orders', label: 'Đơn hàng', icon: ShoppingCart },
   { path: '/customers', label: 'Khách hàng', icon: Users },
   { path: '/broadcast', label: 'Phát sóng', icon: Radio },
