@@ -48,6 +48,13 @@ export interface CustomerQueryParams {
   size?: number;
 }
 
+export interface AdjustWalletPayload {
+  action: 'DEPOSIT' | 'REFUND';
+  amount: number;
+  reason: string;
+  requestId: string;
+}
+
 export const customerApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getCustomers: builder.query<PageResponse<TelegramCustomer>, CustomerQueryParams | void>({
@@ -73,6 +80,14 @@ export const customerApi = baseApi.injectEndpoints({
     getCustomerOrders: builder.query<CustomerOrder[], number>({
       query: (id) => `/admin/customers/${id}/orders`,
       providesTags: ['Customer'],
+    }),
+    adjustCustomerWallet: builder.mutation<{ message: string }, { customerId: number; data: AdjustWalletPayload }>({
+      query: ({ customerId, data }) => ({
+        url: `/admin/customers/${customerId}/adjust-wallet`,
+        method: 'POST',
+        body: data,
+      }),
+      invalidatesTags: ['Customer'],
     }),
     softDeleteCustomer: builder.mutation<{ message: string }, number>({
       query: (id) => ({
@@ -104,9 +119,15 @@ export const customerApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Customer'],
     }),
-    hardDeleteCustomer: builder.mutation<{ message: string }, number>({
+    requestHardDeleteOtp: builder.mutation<{ message: string }, number>({
       query: (id) => ({
-        url: `/admin/customers/${id}/hard-delete`,
+        url: `/admin/customers/${id}/request-hard-delete-otp`,
+        method: 'POST',
+      }),
+    }),
+    hardDeleteCustomer: builder.mutation<{ message: string }, { customerId: number; otp: string }>({
+      query: ({ customerId, otp }) => ({
+        url: `/admin/customers/${customerId}/hard-delete?otp=${encodeURIComponent(otp)}`,
         method: 'DELETE',
       }),
       invalidatesTags: ['Customer'],
@@ -119,10 +140,12 @@ export const {
   useGetCustomerByIdQuery,
   useGetCustomerWalletTransactionsQuery,
   useGetCustomerOrdersQuery,
+  useAdjustCustomerWalletMutation,
   useSoftDeleteCustomerMutation,
   useSoftDeleteBatchMutation,
   useRestoreCustomerMutation,
   useRestoreBatchMutation,
+  useRequestHardDeleteOtpMutation,
   useHardDeleteCustomerMutation,
 } = customerApi;
 

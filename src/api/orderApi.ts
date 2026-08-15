@@ -34,7 +34,28 @@ export const orderApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Order', 'Product'], // Confirmed order might affect stock
     }),
+    retryDelivery: builder.mutation<void, number>({
+      query: (orderId) => ({
+        url: `/admin/orders/${orderId}/retry-delivery`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Order'],
+    }),
+    markManuallyDelivered: builder.mutation<void, { orderId: number; note: string }>({
+      query: ({ orderId, note }) => ({
+        url: `/admin/orders/${orderId}/mark-manually-delivered`,
+        method: 'POST',
+        body: { note },
+      }),
+      invalidatesTags: ['Order'],
+    }),
   }),
 });
 
-export const { useGetOrdersQuery, useGetOrderByIdQuery, useConfirmOrderMutation } = orderApi;
+export const {
+  useGetOrdersQuery,
+  useGetOrderByIdQuery,
+  useConfirmOrderMutation,
+  useRetryDeliveryMutation,
+  useMarkManuallyDeliveredMutation,
+} = orderApi;

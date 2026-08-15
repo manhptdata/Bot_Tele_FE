@@ -1,5 +1,5 @@
 import { baseApi } from './baseApi';
-import { Product } from '../types';
+import { Product, ProductUpsertPayload } from '../types';
 import { PageResponse } from '../types/pagination';
 
 export interface ProductQueryParams {
@@ -23,7 +23,7 @@ export const productApi = baseApi.injectEndpoints({
       },
       providesTags: ['Product'],
     }),
-    createProduct: builder.mutation<Product, Partial<Product>>({
+    createProduct: builder.mutation<Product, ProductUpsertPayload>({
       query: (body) => ({
         url: '/products',
         method: 'POST',
@@ -31,7 +31,7 @@ export const productApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Product'],
     }),
-    updateProduct: builder.mutation<Product, { id: number; data: Partial<Product> }>({
+    updateProduct: builder.mutation<Product, { id: number; data: ProductUpsertPayload }>({
       query: ({ id, data }) => ({
         url: `/products/${id}`,
         method: 'PUT',

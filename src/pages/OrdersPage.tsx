@@ -1,4 +1,10 @@
-import { useGetOrdersQuery, useConfirmOrderMutation, useGetOrderByIdQuery } from '../api/orderApi';
+import {
+  useGetOrdersQuery,
+  useConfirmOrderMutation,
+  useGetOrderByIdQuery,
+  useRetryDeliveryMutation,
+  useMarkManuallyDeliveredMutation,
+} from '../api/orderApi';
 import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Eye, X, Package, User, Wallet, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
@@ -20,6 +26,8 @@ export const OrdersPage = () => {
   
   const orders = pageResponse?.content || [];
   const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
+  const [retryDelivery, { isLoading: isRetrying }] = useRetryDeliveryMutation();
+  const [markManuallyDelivered, { isLoading: isMarkingDelivered }] = useMarkManuallyDeliveredMutation();
 
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   
@@ -35,6 +43,27 @@ export const OrdersPage = () => {
       } catch (err) {
         toast.error('Lỗi khi xác nhận đơn hàng');
       }
+    }
+  };
+
+  const handleRetryDelivery = async (orderId: number) => {
+    if (!window.confirm('Gửi lại thông tin tài khoản cho khách hàng?')) return;
+    try {
+      await retryDelivery(orderId).unwrap();
+      toast.success('Đã đưa đơn hàng vào hàng đợi giao lại.');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Không thể giao lại đơn hàng.');
+    }
+  };
+
+  const handleMarkDelivered = async (orderId: number) => {
+    const note = window.prompt('Ghi chú giao hàng thủ công:', 'Đã giao thủ công bởi Admin');
+    if (note === null) return;
+    try {
+      await markManuallyDelivered({ orderId, note }).unwrap();
+      toast.success('Đã đánh dấu đơn hàng hoàn thành.');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Không thể đánh dấu đã giao.');
     }
   };
 
@@ -232,6 +261,31 @@ export const OrdersPage = () => {
                             className="btn bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600 hover:text-white px-3 py-1 text-sm disabled:opacity-50"
                           >
                             Duyệt đơn
+                          </button>
+                        )}
+                        {order.status === 'DELIVERY_FAILED' && order.deliveryMode === 'AUTO' && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRetryDelivery(order.id);
+                            }}
+                            disabled={isRetrying || isMarkingDelivered}
+                            className="btn bg-amber-600/20 text-amber-300 border border-amber-500/30 hover:bg-amber-600 hover:text-white px-3 py-1 text-sm disabled:opacity-50"
+                          >
+                            Giao lại
+                          </button>
+                        )}
+                        {((order.status === 'DELIVERY_FAILED' && order.deliveryMode === 'AUTO') ||
+                          (order.status === 'PAID_MANUAL_PENDING' && order.deliveryMode === 'MANUAL')) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkDelivered(order.id);
+                            }}
+                            disabled={isRetrying || isMarkingDelivered}
+                            className="btn bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-3 py-1 text-sm disabled:opacity-50"
+                          >
+                            Đã giao
                           </button>
                         )}
                       </div>

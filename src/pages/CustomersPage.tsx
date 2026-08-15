@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store/store';
+import { useGetMeQuery } from '../api/userApi';
 import {
   useGetCustomersQuery,
+  useGetCustomerByIdQuery,
   useGetCustomerWalletTransactionsQuery,
   useGetCustomerOrdersQuery,
+  useAdjustCustomerWalletMutation,
   useSoftDeleteCustomerMutation,
   useSoftDeleteBatchMutation,
   useRestoreCustomerMutation,
   useRestoreBatchMutation,
+  useRequestHardDeleteOtpMutation,
   useHardDeleteCustomerMutation,
   TelegramCustomer,
 } from '../api/customerApi';
@@ -32,10 +38,21 @@ import {
   Wallet,
   ArrowDownLeft,
   ArrowUpRight,
+  Coins,
+  PlusCircle,
+  MinusCircle,
+  ShieldAlert,
+  Send,
+  KeyRound,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const CustomersPage: React.FC = () => {
+  const { data: meData } = useGetMeQuery();
+  const { user: authUser } = useSelector((state: RootState) => state.auth);
+  const currentUser = meData || authUser;
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === undefined || !currentUser;
+
   const [keyword, setKeyword] = useState('');
   const [statusTab, setStatusTab] = useState<'ACTIVE' | 'DELETED' | 'ALL'>('ACTIVE');
   const [page, setPage] = useState(0);
@@ -55,11 +72,23 @@ export const CustomersPage: React.FC = () => {
   const [softDeleteBatch, { isLoading: isBatchDeleting }] = useSoftDeleteBatchMutation();
   const [restoreCustomer] = useRestoreCustomerMutation();
   const [restoreBatch, { isLoading: isBatchRestoring }] = useRestoreBatchMutation();
+  const [requestHardDeleteOtp, { isLoading: isSendingOtp }] = useRequestHardDeleteOtpMutation();
   const [hardDeleteCustomer, { isLoading: isHardDeleting }] = useHardDeleteCustomerMutation();
 
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [viewCustomer, setViewCustomer] = useState<TelegramCustomer | null>(null);
   const [hardDeleteTarget, setHardDeleteTarget] = useState<TelegramCustomer | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+
+  // Bộ đếm ngược gửi lại OTP
+  React.useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked && data?.content) {
@@ -121,15 +150,33 @@ export const CustomersPage: React.FC = () => {
     }
   };
 
-  const handleConfirmHardDelete = async () => {
+  const handleSendHardDeleteOtp = async () => {
     if (!hardDeleteTarget) return;
     try {
-      await hardDeleteCustomer(hardDeleteTarget.id).unwrap();
+      await requestHardDeleteOtp(hardDeleteTarget.id).unwrap();
+      toast.success('Mã OTP xác nhận 6 số đã được gửi về Telegram Admin!');
+      setOtpSent(true);
+      setCountdown(60);
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Không thể gửi mã OTP qua Telegram');
+    }
+  };
+
+  const handleConfirmHardDelete = async () => {
+    if (!hardDeleteTarget) return;
+    if (!otpCode.trim()) {
+      toast.error('Vui lòng nhập mã OTP xác nhận được gửi về Telegram Admin');
+      return;
+    }
+    try {
+      await hardDeleteCustomer({ customerId: hardDeleteTarget.id, otp: otpCode.trim() }).unwrap();
       toast.success('Đã xóa vĩnh viễn khách hàng thành công');
       if (viewCustomer?.id === hardDeleteTarget.id) {
         setViewCustomer(null);
       }
       setHardDeleteTarget(null);
+      setOtpCode('');
+      setOtpSent(false);
       setSelectedIds((prev) => prev.filter((item) => item !== hardDeleteTarget.id));
     } catch (err: any) {
       toast.error(err?.data?.message || 'Có lỗi xảy ra khi xóa vĩnh viễn');
@@ -406,22 +453,27 @@ export const CustomersPage: React.FC = () => {
       {viewCustomer && (
         <CustomerDetailModal
           customer={viewCustomer}
+          isAdmin={isAdmin}
           onClose={() => setViewCustomer(null)}
           formatMoney={formatMoney}
           formatDate={formatDate}
         />
       )}
 
-      {/* Modal Cảnh báo Xóa Cứng (Hard Delete Confirmation Modal) */}
+      {/* Modal Cảnh báo Xóa Cứng với 2FA OTP qua Telegram */}
       {hardDeleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-slate-900 border-2 border-red-600/80 rounded-2xl max-w-md w-full p-6 shadow-2xl shadow-red-950/50 space-y-5 animate-in zoom-in-95">
             <div className="flex items-start justify-between">
               <div className="w-12 h-12 rounded-xl bg-red-600/20 border border-red-500/30 flex items-center justify-center text-red-500">
-                <AlertTriangle size={28} />
+                <ShieldAlert size={28} />
               </div>
               <button
-                onClick={() => setHardDeleteTarget(null)}
+                onClick={() => {
+                  setHardDeleteTarget(null);
+                  setOtpCode('');
+                  setOtpSent(false);
+                }}
                 className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
               >
                 <X size={20} />
@@ -429,13 +481,15 @@ export const CustomersPage: React.FC = () => {
             </div>
 
             <div>
-              <h3 className="text-xl font-bold text-white">Xác nhận Xóa Vĩnh Viễn?</h3>
-              <p className="text-sm text-red-400 mt-1 font-medium">
-                Cảnh báo nguy hiểm: Hành động này KHÔNG THỂ HOÀN TÁC!
+              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                Xác nhận Xóa Vĩnh Viễn
+              </h3>
+              <p className="text-xs text-red-400 mt-1 font-medium">
+                Cảnh báo bảo mật: Hành động này xóa sạch ví tiền và hồ sơ của khách!
               </p>
             </div>
 
-            <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 text-sm space-y-1.5">
+            <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 text-xs space-y-1.5">
               <div className="flex justify-between text-slate-300">
                 <span className="text-slate-400">Telegram ID:</span>
                 <span className="font-mono font-bold text-white">{hardDeleteTarget.telegramId}</span>
@@ -448,33 +502,73 @@ export const CustomersPage: React.FC = () => {
                 </span>
               </div>
               <div className="flex justify-between text-slate-300">
-                <span className="text-slate-400">Số dư ví:</span>
+                <span className="text-slate-400">Số dư ví sẽ bị xóa:</span>
                 <span className="font-semibold text-emerald-400">{formatMoney(hardDeleteTarget.walletBalance)}</span>
-              </div>
-              <div className="flex justify-between text-slate-300">
-                <span className="text-slate-400">Tổng chi tiêu:</span>
-                <span className="font-semibold text-amber-400">{formatMoney(hardDeleteTarget.totalSpent)}</span>
               </div>
             </div>
 
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Khách hàng này và bản ghi ví liên kết sẽ bị xóa hoàn toàn khỏi cơ sở dữ liệu. Nếu bạn chỉ muốn ẩn khách hàng khỏi danh sách, vui lòng sử dụng chức năng <strong>Xóa mềm</strong>.
-            </p>
+            {/* Khung Xác thực 2FA OTP qua Telegram */}
+            <div className="bg-red-950/20 border border-red-500/30 p-3.5 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-red-300 flex items-center gap-1.5">
+                  <KeyRound size={14} />
+                  Mã xác thực 2FA (Telegram OTP)
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSendHardDeleteOtp}
+                  disabled={isSendingOtp || countdown > 0}
+                  className="text-[11px] bg-red-600/30 hover:bg-red-600/50 text-red-300 border border-red-500/40 px-2.5 py-1 rounded-lg font-bold transition-all disabled:opacity-50 flex items-center gap-1"
+                >
+                  {isSendingOtp ? (
+                    'Đang gửi...'
+                  ) : countdown > 0 ? (
+                    `Gửi lại (${countdown}s)`
+                  ) : (
+                    <>
+                      <Send size={11} />
+                      {otpSent ? 'Gửi lại mã' : 'Nhận mã OTP'}
+                    </>
+                  )}
+                </button>
+              </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+              {otpSent && (
+                <div className="space-y-1.5 animate-in fade-in">
+                  <input
+                    type="text"
+                    maxLength={6}
+                    placeholder="Nhập mã 6 chữ số gửi về Telegram"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                    className="w-full bg-slate-950 border border-red-500/50 rounded-xl px-3.5 py-2.5 text-center text-white font-mono font-bold tracking-widest text-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                    autoFocus
+                  />
+                  <p className="text-[11px] text-slate-400 text-center">
+                    Mã OTP đã được gửi đến Telegram Admin (Hiệu lực 5 phút)
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-1 border-t border-slate-800">
               <button
                 type="button"
-                onClick={() => setHardDeleteTarget(null)}
+                onClick={() => {
+                  setHardDeleteTarget(null);
+                  setOtpCode('');
+                  setOtpSent(false);
+                }}
                 disabled={isHardDeleting}
-                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
               >
                 Hủy bỏ
               </button>
               <button
                 type="button"
                 onClick={handleConfirmHardDelete}
-                disabled={isHardDeleting}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold shadow-lg shadow-red-600/30 flex items-center gap-2 transition-colors disabled:opacity-50"
+                disabled={isHardDeleting || !otpSent || otpCode.length < 6}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-600/30 flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isHardDeleting ? (
                   <>
@@ -483,8 +577,8 @@ export const CustomersPage: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <Trash2 size={16} />
-                    Xóa vĩnh viễn
+                    <Trash2 size={14} />
+                    Xác nhận Xóa Vĩnh Viễn
                   </>
                 )}
               </button>
@@ -499,6 +593,7 @@ export const CustomersPage: React.FC = () => {
 {/* SUB-COMPONENT: CUSTOMER DETAIL MODAL */}
 interface CustomerDetailModalProps {
   customer: TelegramCustomer;
+  isAdmin: boolean;
   onClose: () => void;
   formatMoney: (amount: number | undefined | null) => string;
   formatDate: (dateStr: string | undefined) => string;
@@ -506,12 +601,18 @@ interface CustomerDetailModalProps {
 
 const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   customer,
+  isAdmin,
   onClose,
   formatMoney,
   formatDate,
 }) => {
   const [activeTab, setActiveTab] = useState<'WALLET' | 'ORDERS'>('WALLET');
   const [copiedId, setCopiedId] = useState(false);
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+
+  // Lấy dữ liệu chi tiết mới nhất của khách hàng
+  const { data: latestCustomer } = useGetCustomerByIdQuery(customer.id);
+  const currentCustomer = latestCustomer || customer;
 
   const { data: transactions = [], isLoading: isTxLoading } = useGetCustomerWalletTransactionsQuery(customer.id);
   const { data: orders = [], isLoading: isOrdersLoading } = useGetCustomerOrdersQuery(customer.id);
@@ -522,6 +623,12 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         return (
           <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-xs font-semibold">
             <ArrowDownLeft size={13} /> Nạp tiền
+          </span>
+        );
+      case 'ADMIN_ADJUST':
+        return (
+          <span className="inline-flex items-center gap-1 bg-teal-500/10 text-teal-400 border border-teal-500/20 px-2 py-0.5 rounded text-xs font-semibold">
+            <PlusCircle size={13} /> Admin cộng ví
           </span>
         );
       case 'PURCHASE':
@@ -554,6 +661,7 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const getOrderStatusBadge = (status: string) => {
     switch (status) {
       case 'COMPLETED':
+      case 'PAID':
         return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full text-xs font-semibold">Thành công</span>;
       case 'PENDING':
         return <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 rounded-full text-xs font-semibold">Chờ thanh toán</span>;
@@ -565,236 +673,445 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[92vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-800 pb-4 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <User size={26} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xl font-bold text-white">
-                  {[customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Khách hàng ẩn danh'}
-                </h3>
-                {customer.isDeleted ? (
-                  <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-[11px]">
-                    Đã xóa mềm
-                  </span>
-                ) : (
-                  <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[11px]">
-                    Hoạt động
-                  </span>
-                )}
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+        <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95 max-h-[92vh] flex flex-col">
+          {/* Header */}
+          <div className="flex items-start justify-between border-b border-slate-800 pb-4 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                <User size={26} />
               </div>
-              <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
-                {customer.username ? (
-                  <a
-                    href={`https://t.me/${customer.username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 font-medium inline-flex items-center gap-1 hover:underline"
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xl font-bold text-white">
+                    {[currentCustomer.firstName, currentCustomer.lastName].filter(Boolean).join(' ') || 'Khách hàng ẩn danh'}
+                  </h3>
+                  {currentCustomer.isDeleted ? (
+                    <span className="bg-red-500/10 text-red-400 border border-red-500/20 px-2 py-0.5 rounded text-[11px]">
+                      Đã xóa mềm
+                    </span>
+                  ) : (
+                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[11px]">
+                      Hoạt động
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                  {currentCustomer.username ? (
+                    <a
+                      href={`https://t.me/${currentCustomer.username}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 font-medium inline-flex items-center gap-1 hover:underline"
+                    >
+                      @{currentCustomer.username}
+                      <ExternalLink size={11} />
+                    </a>
+                  ) : (
+                    <span className="italic">Chưa có username</span>
+                  )}
+                  <span>•</span>
+                  <span className="font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300">
+                    ID: {currentCustomer.telegramId}
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(String(currentCustomer.telegramId));
+                      setCopiedId(true);
+                      toast.success('Đã sao chép Telegram ID');
+                      setTimeout(() => setCopiedId(false), 2000);
+                    }}
+                    className="text-slate-400 hover:text-white p-0.5 hover:bg-slate-800 rounded transition-colors"
+                    title="Sao chép ID"
                   >
-                    @{customer.username}
-                    <ExternalLink size={11} />
-                  </a>
-                ) : (
-                  <span className="italic">Chưa có username</span>
-                )}
-                <span>•</span>
-                <span className="font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300">
-                  ID: {customer.telegramId}
-                </span>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(String(customer.telegramId));
-                    setCopiedId(true);
-                    toast.success('Đã sao chép Telegram ID');
-                    setTimeout(() => setCopiedId(false), 2000);
-                  }}
-                  className="text-slate-400 hover:text-white p-0.5 hover:bg-slate-800 rounded transition-colors"
-                  title="Sao chép ID"
-                >
-                  {copiedId ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
-                </button>
+                    {copiedId ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* 3 Thẻ Thống Kê Tổng Quan */}
-        <div className="grid grid-cols-3 gap-3 shrink-0">
-          <div className="bg-emerald-950/20 border border-emerald-800/40 p-3.5 rounded-xl">
-            <span className="text-xs text-emerald-400/80 font-medium block">Số dư Ví Bot</span>
-            <span className="text-lg font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
-              <Wallet size={18} />
-              {formatMoney(customer.walletBalance)}
-            </span>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <X size={20} />
+            </button>
           </div>
 
-          <div className="bg-indigo-950/20 border border-indigo-800/40 p-3.5 rounded-xl">
-            <span className="text-xs text-indigo-400/80 font-medium block">Tổng đơn hàng</span>
-            <span className="text-lg font-bold text-indigo-300 mt-1 flex items-center gap-1.5">
-              <ShoppingBag size={18} />
-              {customer.totalOrders} đơn
-            </span>
+          {/* 3 Thẻ Thống Kê Tổng Quan */}
+          <div className="grid grid-cols-3 gap-3 shrink-0">
+            <div className="bg-emerald-950/20 border border-emerald-800/40 p-3.5 rounded-xl flex flex-col justify-between">
+              <div>
+                <span className="text-xs text-emerald-400/80 font-medium block">Số dư Ví Bot</span>
+                <span className="text-lg font-bold text-emerald-400 mt-1 flex items-center gap-1.5">
+                  <Wallet size={18} />
+                  {formatMoney(currentCustomer.walletBalance)}
+                </span>
+              </div>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustModal(true)}
+                  className="mt-2.5 w-full py-1.5 px-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 transition-all"
+                >
+                  <Coins size={13} />
+                  Hoàn / Điều chỉnh ví
+                </button>
+              )}
+            </div>
+
+            <div className="bg-indigo-950/20 border border-indigo-800/40 p-3.5 rounded-xl">
+              <span className="text-xs text-indigo-400/80 font-medium block">Tổng đơn hàng</span>
+              <span className="text-lg font-bold text-indigo-300 mt-1 flex items-center gap-1.5">
+                <ShoppingBag size={18} />
+                {currentCustomer.totalOrders} đơn
+              </span>
+            </div>
+
+            <div className="bg-amber-950/20 border border-amber-800/40 p-3.5 rounded-xl">
+              <span className="text-xs text-amber-400/80 font-medium block">Tổng chi tiêu</span>
+              <span className="text-lg font-bold text-amber-400 mt-1 flex items-center gap-1.5">
+                <CircleDollarSign size={18} />
+                {formatMoney(currentCustomer.totalSpent)}
+              </span>
+            </div>
           </div>
 
-          <div className="bg-amber-950/20 border border-amber-800/40 p-3.5 rounded-xl">
-            <span className="text-xs text-amber-400/80 font-medium block">Tổng chi tiêu</span>
-            <span className="text-lg font-bold text-amber-400 mt-1 flex items-center gap-1.5">
-              <CircleDollarSign size={18} />
-              {formatMoney(customer.totalSpent)}
-            </span>
-          </div>
-        </div>
+          {/* Tabs Điều hướng: Lịch sử ví vs Đơn hàng */}
+          <div className="flex border-b border-slate-800 gap-6 shrink-0 text-sm font-semibold">
+            <button
+              onClick={() => setActiveTab('WALLET')}
+              className={`pb-3 relative flex items-center gap-2 transition-colors ${
+                activeTab === 'WALLET' ? 'text-blue-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Wallet size={16} />
+              Lịch sử Ví & Nạp tiền ({transactions.length})
+              {activeTab === 'WALLET' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+              )}
+            </button>
 
-        {/* Tabs Điều hướng: Lịch sử ví vs Đơn hàng */}
-        <div className="flex border-b border-slate-800 gap-6 shrink-0 text-sm font-semibold">
-          <button
-            onClick={() => setActiveTab('WALLET')}
-            className={`pb-3 relative flex items-center gap-2 transition-colors ${
-              activeTab === 'WALLET' ? 'text-blue-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Wallet size={16} />
-            Lịch sử Ví & Nạp tiền ({transactions.length})
+            <button
+              onClick={() => setActiveTab('ORDERS')}
+              className={`pb-3 relative flex items-center gap-2 transition-colors ${
+                activeTab === 'ORDERS' ? 'text-blue-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <ShoppingBag size={16} />
+              Lịch sử Đơn hàng ({orders.length})
+              {activeTab === 'ORDERS' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+              )}
+            </button>
+          </div>
+
+          {/* Nội dung Tab Cuộn được */}
+          <div className="overflow-y-auto pr-1 flex-1 space-y-3 min-h-[220px]">
             {activeTab === 'WALLET' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-            )}
-          </button>
+              isTxLoading ? (
+                <div className="py-12 text-center text-slate-400">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  Đang tải lịch sử giao dịch ví...
+                </div>
+              ) : transactions.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <Wallet size={36} className="mx-auto opacity-30" />
+                  <p>Khách hàng chưa có giao dịch ví nào.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {transactions.map((tx) => {
+                    const isPositive = Number(tx.amount) > 0 && tx.type !== 'PURCHASE' && tx.type !== 'REFUND';
+                    return (
+                      <div
+                        key={tx.id}
+                        className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors flex items-center justify-between"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            {getTxTypeBadge(tx.type)}
+                            {tx.referenceCode && (
+                              <span className="font-mono text-xs font-semibold text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                {tx.referenceCode}
+                              </span>
+                            )}
+                            <span className="text-xs text-slate-500">{formatDate(tx.createdAt)}</span>
+                          </div>
+                          <p className="text-xs text-slate-300">{tx.description || '-'}</p>
+                          <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
+                            <span>Số dư:</span>
+                            <span>{formatMoney(tx.balanceBefore)}</span>
+                            <span className="text-slate-500">→</span>
+                            <span className="font-bold text-slate-200">{formatMoney(tx.balanceAfter)}</span>
+                          </div>
+                        </div>
 
-          <button
-            onClick={() => setActiveTab('ORDERS')}
-            className={`pb-3 relative flex items-center gap-2 transition-colors ${
-              activeTab === 'ORDERS' ? 'text-blue-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <ShoppingBag size={16} />
-            Lịch sử Đơn hàng ({orders.length})
+                        <div className="text-right">
+                          <span className={`text-base font-bold font-mono ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {isPositive ? `+${formatMoney(tx.amount)}` : `-${formatMoney(tx.amount)}`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            )}
+
             {activeTab === 'ORDERS' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
-            )}
-          </button>
-        </div>
-
-        {/* Nội dung Tab Cuộn được */}
-        <div className="overflow-y-auto pr-1 flex-1 space-y-3 min-h-[220px]">
-          {activeTab === 'WALLET' && (
-            isTxLoading ? (
-              <div className="py-12 text-center text-slate-400">
-                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                Đang tải lịch sử giao dịch ví...
-              </div>
-            ) : transactions.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 space-y-2">
-                <Wallet size={36} className="mx-auto opacity-30" />
-                <p>Khách hàng chưa có giao dịch ví nào.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {transactions.map((tx) => {
-                  const isPositive = Number(tx.amount) > 0;
-                  return (
+              isOrdersLoading ? (
+                <div className="py-12 text-center text-slate-400">
+                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                  Đang tải lịch sử đơn hàng...
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="py-12 text-center text-slate-500 space-y-2">
+                  <ShoppingBag size={36} className="mx-auto opacity-30" />
+                  <p>Khách hàng chưa có đơn hàng nào.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {orders.map((order) => (
                     <div
-                      key={tx.id}
+                      key={order.id}
                       className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors flex items-center justify-between"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          {getTxTypeBadge(tx.type)}
-                          {tx.referenceCode && (
-                            <span className="font-mono text-xs font-semibold text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
-                              {tx.referenceCode}
-                            </span>
-                          )}
-                          <span className="text-xs text-slate-500">{formatDate(tx.createdAt)}</span>
+                          <span className="font-mono font-bold text-blue-400 text-sm">{order.orderCode}</span>
+                          {getOrderStatusBadge(order.status)}
+                          <span className="text-xs text-slate-500">{formatDate(order.createdAt)}</span>
                         </div>
-                        <p className="text-xs text-slate-300">{tx.description || '-'}</p>
-                        <div className="text-[11px] text-slate-400 flex items-center gap-1.5 font-mono">
-                          <span>Số dư:</span>
-                          <span>{formatMoney(tx.balanceBefore)}</span>
-                          <span>$\rightarrow$</span>
-                          <span className="font-bold text-slate-200">{formatMoney(tx.balanceAfter)}</span>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <span>Hình thức:</span>
+                          <span className="font-medium text-slate-300">
+                            {order.paymentMethod === 'WALLET' ? '💳 Ví Bot' : '🏦 Ngân hàng'}
+                          </span>
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <span className={`text-base font-bold font-mono ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isPositive ? `+${formatMoney(tx.amount)}` : formatMoney(tx.amount)}
+                        <span className="text-base font-bold text-white">
+                          {formatMoney(order.totalAmount)}
                         </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )
-          )}
-
-          {activeTab === 'ORDERS' && (
-            isOrdersLoading ? (
-              <div className="py-12 text-center text-slate-400">
-                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                Đang tải lịch sử đơn hàng...
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="py-12 text-center text-slate-500 space-y-2">
-                <ShoppingBag size={36} className="mx-auto opacity-30" />
-                <p>Khách hàng chưa có đơn hàng nào.</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors flex items-center justify-between"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-blue-400 text-sm">{order.orderCode}</span>
-                        {getOrderStatusBadge(order.status)}
-                        <span className="text-xs text-slate-500">{formatDate(order.createdAt)}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <span>Hình thức:</span>
-                        <span className="font-medium text-slate-300">
-                          {order.paymentMethod === 'WALLET' ? '💳 Ví Bot' : '🏦 Ngân hàng'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-base font-bold text-white">
-                        {formatMoney(order.totalAmount)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-800 shrink-0">
-          <div className="text-xs text-slate-500 flex items-center gap-1">
-            <Clock size={12} /> Hoạt động gần nhất: {formatDate(customer.lastSeen)}
+                  ))}
+                </div>
+              )
+            )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
-          >
-            Đóng
+
+          {/* Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-slate-800 shrink-0">
+            <div className="text-xs text-slate-500 flex items-center gap-1">
+              <Clock size={12} /> Hoạt động gần nhất: {formatDate(currentCustomer.lastSeen)}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* MODAL CON: ĐIỀU CHỈNH VÍ / HOÀN TIỀN */}
+      {showAdjustModal && (
+        <AdjustWalletModal
+          customer={currentCustomer}
+          onClose={() => setShowAdjustModal(false)}
+          formatMoney={formatMoney}
+        />
+      )}
+    </>
+  );
+};
+
+{/* SUB-COMPONENT: ADJUST WALLET MODAL (CHỈ DÀNH CHO ADMIN) */}
+interface AdjustWalletModalProps {
+  customer: TelegramCustomer;
+  onClose: () => void;
+  formatMoney: (val: number | undefined | null) => string;
+}
+
+const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose, formatMoney }) => {
+  const [action, setAction] = useState<'REFUND' | 'DEPOSIT'>('REFUND');
+  const [amount, setAmount] = useState<string>('');
+  const [reason, setReason] = useState<string>('');
+  const requestIdentityRef = useRef<{ signature: string; requestId: string } | null>(null);
+  const [adjustWallet, { isLoading }] = useAdjustCustomerWalletMutation();
+
+  const handleQuickAmount = (val: number) => {
+    setAmount(val.toString());
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const numAmount = Number(amount);
+    if (!numAmount || numAmount <= 0) {
+      toast.error('Vui lòng nhập số tiền hợp lệ');
+      return;
+    }
+    if (numAmount < 1000) {
+      toast.error('Số tiền tối thiểu là 1.000đ');
+      return;
+    }
+    if (action === 'REFUND' && (customer.walletBalance || 0) < numAmount) {
+      toast.error(`Số dư ví hiện tại (${formatMoney(customer.walletBalance)}) không đủ để trừ`);
+      return;
+    }
+    if (!reason.trim()) {
+      toast.error('Vui lòng nhập lý do điều chỉnh');
+      return;
+    }
+
+    const signature = `${customer.id}|${action}|${numAmount}|${reason.trim()}`;
+    if (!requestIdentityRef.current || requestIdentityRef.current.signature !== signature) {
+      requestIdentityRef.current = { signature, requestId: crypto.randomUUID() };
+    }
+
+    try {
+      await adjustWallet({
+        customerId: customer.id,
+        data: {
+          action,
+          amount: numAmount,
+          reason: reason.trim(),
+          requestId: requestIdentityRef.current.requestId,
+        },
+      }).unwrap();
+      toast.success(action === 'REFUND' ? 'Hoàn tiền / trừ ví thành công!' : 'Cộng tiền ví thành công!');
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Có lỗi xảy ra khi điều chỉnh ví');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-slate-900 border-2 border-blue-500/80 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 animate-in zoom-in-95">
+        <div className="flex items-start justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${action === 'REFUND' ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30' : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'}`}>
+              {action === 'REFUND' ? <MinusCircle size={22} /> : <PlusCircle size={22} />}
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Điều chỉnh số dư Ví</h3>
+              <p className="text-xs text-slate-400">
+                Khách: {[customer.firstName, customer.lastName].filter(Boolean).join(' ') || customer.username || customer.telegramId}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+            <X size={18} />
           </button>
         </div>
+
+        {/* Chọn Loại Hành Động: Trừ ví vs Cộng ví */}
+        <div className="grid grid-cols-2 gap-2 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
+          <button
+            type="button"
+            onClick={() => setAction('REFUND')}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              action === 'REFUND'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <MinusCircle size={14} />
+            Trừ ví / Hoàn tiền
+          </button>
+          <button
+            type="button"
+            onClick={() => setAction('DEPOSIT')}
+            className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              action === 'DEPOSIT'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <PlusCircle size={14} />
+            Cộng tiền ví
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="bg-slate-950/60 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+            <span className="text-slate-400">Số dư ví hiện tại:</span>
+            <span className="font-bold text-emerald-400 font-mono text-sm">{formatMoney(customer.walletBalance)}</span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Số tiền cần {action === 'REFUND' ? 'trừ (VNĐ)' : 'cộng (VNĐ)'} <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="number"
+              placeholder="VD: 50000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            {action === 'REFUND' && customer.walletBalance && customer.walletBalance > 0 && (
+              <div className="flex gap-1.5 mt-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickAmount(customer.walletBalance || 0)}
+                  className="text-[11px] bg-slate-800 hover:bg-slate-700 text-blue-400 px-2.5 py-1 rounded-lg border border-slate-700 transition-colors font-medium"
+                >
+                  Hoàn toàn bộ ({formatMoney(customer.walletBalance)})
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              Lý do điều chỉnh <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              rows={2}
+              placeholder={action === 'REFUND' ? 'VD: Hoàn tiền chuyển đúp đơn ORD_123 về STK MBBank 1903...' : 'VD: Tặng tiền khuyến mãi tri ân khách hàng...'}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-white text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition-colors"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className={`px-4 py-2 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all disabled:opacity-50 ${
+                action === 'REFUND'
+                  ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'
+                  : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
+              }`}
+            >
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : action === 'REFUND' ? (
+                <MinusCircle size={14} />
+              ) : (
+                <PlusCircle size={14} />
+              )}
+              {action === 'REFUND' ? 'Xác nhận trừ ví' : 'Xác nhận cộng ví'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

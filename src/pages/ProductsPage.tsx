@@ -33,20 +33,22 @@ export const ProductsPage = () => {
   const [formData, setFormData] = useState<{
     name: string;
     slug: string;
-    price: number;
+    price: string;
     categoryId: string;
     description: string;
     deliveryMode: 'AUTO' | 'MANUAL';
+    stockCount: string;
     accountFormat: string;
     displayType: 'MULTI_LINE' | 'RAW';
     isActive: boolean;
   }>({
     name: '',
     slug: '',
-    price: 0,
+    price: '',
     categoryId: '',
     description: '',
     deliveryMode: 'AUTO',
+    stockCount: '0',
     accountFormat: 'Tài khoản|Mật khẩu',
     displayType: 'MULTI_LINE',
     isActive: true
@@ -59,10 +61,11 @@ export const ProductsPage = () => {
       setFormData({
         name: product.name,
         slug: product.slug,
-        price: product.price,
+        price: String(product.price ?? 0),
         categoryId: product.categoryId?.toString() || (categories.length > 0 ? categories[0].id.toString() : ''),
         description: product.description || '',
         deliveryMode: product.deliveryMode,
+        stockCount: String(product.stockCount ?? 0),
         accountFormat: product.accountFormat || 'Tài khoản|Mật khẩu',
         displayType: product.displayType || 'MULTI_LINE',
         isActive: product.isActive
@@ -80,10 +83,11 @@ export const ProductsPage = () => {
       setFormData({ 
         name: '', 
         slug: '', 
-        price: 0, 
+        price: '',
         categoryId: categories.length > 0 ? categories[0].id.toString() : '',
         description: '', 
         deliveryMode: 'AUTO', 
+        stockCount: '0',
         accountFormat: 'Tài khoản|Mật khẩu',
         displayType: 'MULTI_LINE',
         isActive: true 
@@ -100,6 +104,17 @@ export const ProductsPage = () => {
       toast.error('Vui lòng chọn danh mục!');
       return;
     }
+    const numericPrice = Number(formData.price);
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
+      toast.error('Giá sản phẩm phải lớn hơn 0!');
+      return;
+    }
+    const numericStock = Number(formData.stockCount);
+    if (formData.deliveryMode === 'MANUAL' &&
+        (!Number.isInteger(numericStock) || numericStock < 0)) {
+      toast.error('Tồn kho thủ công phải là số nguyên từ 0 trở lên!');
+      return;
+    }
     try {
       const attributesRecord = attributeList.reduce((acc, curr) => {
         if (curr.key.trim() && curr.value.trim()) {
@@ -109,7 +124,9 @@ export const ProductsPage = () => {
       }, {} as Record<string, string>);
       const payload = { 
         ...formData, 
+        price: formData.price.trim(),
         categoryId: Number(formData.categoryId), 
+        stockCount: formData.deliveryMode === 'MANUAL' ? numericStock : undefined,
         attributes: attributesRecord,
         accountFormat: formatFieldsList.filter(f => f.trim() !== '').join('|') || 'Tài khoản'
       };
@@ -324,7 +341,7 @@ export const ProductsPage = () => {
               </div>
               <div>
                 <label className="block text-sm text-gray-300 mb-1">Giá (VNĐ)</label>
-                <input required type="number" min="0" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" value={formData.price} onChange={(e) => setFormData({...formData, price: Number(e.target.value)})} />
+                <input required type="number" min="0.01" step="0.01" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} />
               </div>
               <div>
                 <label className="block text-sm text-gray-300 mb-1">Loại Giao Hàng</label>
@@ -333,6 +350,20 @@ export const ProductsPage = () => {
                   <option value="MANUAL">Thủ công (Admin tự nhắn tin)</option>
                 </select>
               </div>
+              {formData.deliveryMode === 'MANUAL' && (
+                <div>
+                  <label className="block text-sm text-gray-300 mb-1">Tồn kho giao thủ công</label>
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
+                    value={formData.stockCount}
+                    onChange={(e) => setFormData({ ...formData, stockCount: e.target.value })}
+                  />
+                </div>
+              )}
               
               <div className="pt-2 border-t border-slate-700/50">
                 <div className="flex justify-between items-center mb-2">

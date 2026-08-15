@@ -34,6 +34,23 @@ export interface Product {
   attributes?: Record<string, string>;
 }
 
+/** Request shape is intentionally separate because the form preserves price as
+ * a decimal string until it reaches the backend BigDecimal parser. */
+export interface ProductUpsertPayload {
+  categoryId: number;
+  name: string;
+  slug: string;
+  description?: string;
+  price: string;
+  imageUrl?: string;
+  isActive: boolean;
+  deliveryMode: 'AUTO' | 'MANUAL';
+  stockCount?: number;
+  accountFormat: string;
+  displayType: 'MULTI_LINE' | 'RAW';
+  attributes?: Record<string, string>;
+}
+
 export interface Account {
   id: number;
   productId: number;
@@ -59,9 +76,9 @@ export interface OrderDetail {
   subtotalAmount?: number;
   feeAmount?: number;
   totalAmount: number;
-  status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
+  status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';
-  paymentMethod: 'WALLET' | 'BANK_TRANSFER';
+  paymentMethod: 'WALLET' | 'BANK_TRANSFER' | 'FREE';
   adminNote?: string;
   createdAt: string;
   customer: {
@@ -78,9 +95,9 @@ export interface OrderTable {
   subtotalAmount?: number;
   feeAmount?: number;
   totalAmount: number;
-  status: 'PENDING' | 'PAID' | 'COMPLETED' | 'CANCELLED' | 'REFUNDED';
+  status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';
-  paymentMethod: 'WALLET' | 'BANK_TRANSFER';
+  paymentMethod: 'WALLET' | 'BANK_TRANSFER' | 'FREE';
   createdAt: string;
   customer: {
     telegramId: number;
@@ -95,7 +112,8 @@ export interface PaymentConfig {
   accountNumber: string;
   accountHolder: string;
   webhookProvider?: string;
-  webhookApiKey: string;
+  webhookApiKey?: string;
+  isWebhookApiKeyConfigured?: boolean;
   isDefault: boolean;
   paymentTimeoutMinutes?: number;
   bankFeeType?: 'FIXED' | 'PERCENT';

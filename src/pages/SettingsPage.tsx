@@ -104,13 +104,17 @@ export const SettingsPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createConfig({
+      const payload: any = {
         ...formData,
         paymentTimeoutMinutes: Number(formData.paymentTimeoutMinutes) || 5,
         bankFeeAmount: Number(formData.bankFeeAmount) || 0,
         id: defaultConfig?.id,
         isDefault: true
-      }).unwrap();
+      };
+      if (!formData.webhookApiKey || formData.webhookApiKey.trim() === '') {
+        delete payload.webhookApiKey;
+      }
+      await createConfig(payload).unwrap();
       toast.success('Lưu cấu hình thanh toán thành công!');
     } catch (err) {
       toast.error('Lỗi khi lưu cấu hình');
@@ -417,7 +421,14 @@ export const SettingsPage = () => {
                         {/* Webhook API Key */}
                         <div>
                           <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                            <span>Webhook API Key</span>
+                            <span className="flex items-center gap-2">
+                              Webhook API Key
+                              {defaultConfig?.isWebhookApiKeyConfigured && (
+                                <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                                  ✓ Đã cấu hình an toàn
+                                </span>
+                              )}
+                            </span>
                             <a href="https://my.sepay.vn" target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline flex items-center gap-1">
                               Lấy API Key trên SePay <ExternalLink size={12} />
                             </a>
@@ -428,7 +439,7 @@ export const SettingsPage = () => {
                               name="webhookApiKey"
                               value={formData.webhookApiKey}
                               onChange={handleChange}
-                              placeholder="Dán mã API Key lấy từ SePay vào đây"
+                              placeholder={defaultConfig?.isWebhookApiKeyConfigured ? '•••••••• (Để trống nếu giữ nguyên API Key hiện tại)' : 'Dán mã API Key lấy từ SePay vào đây'}
                               className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 text-sm font-mono"
                             />
                             <button
@@ -439,6 +450,11 @@ export const SettingsPage = () => {
                               {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
                             </button>
                           </div>
+                          {defaultConfig?.isWebhookApiKeyConfigured && (
+                            <p className="text-[11px] text-slate-400 mt-1">
+                              API Key được lưu trữ mã hóa trên server. Chỉ nhập vào ô trên khi bạn muốn thay đổi mã key mới.
+                            </p>
+                          )}
                         </div>
                       </div>
                     )}
