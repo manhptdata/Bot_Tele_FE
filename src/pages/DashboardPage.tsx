@@ -17,10 +17,9 @@ const StatCard = ({ title, value, icon: Icon, colorClass }: any) => (
 );
 
 export const DashboardPage = () => {
-  const { data: ordersPage } = useGetOrdersQuery();
-  const { data: accountsPage } = useGetAccountsQuery();
+  const { data: ordersPage } = useGetOrdersQuery({ size: 20 });
+  const { data: accountsPage } = useGetAccountsQuery({ status: 'AVAILABLE', size: 1 });
   const orders = ordersPage?.content || [];
-  const accounts = accountsPage?.content || [];
 
   const stats = useMemo(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -28,18 +27,18 @@ export const DashboardPage = () => {
     // Tính tổng doanh thu của các đơn đã thanh toán/hoàn thành
     const totalRevenue = orders
       .filter(o => o.status === 'PAID' || o.status === 'COMPLETED')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+      .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
     // Tính doanh thu trong ngày hôm nay
     const todayRevenue = orders
       .filter(o => (o.status === 'PAID' || o.status === 'COMPLETED') && o.createdAt?.startsWith(today))
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+      .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
 
     // Số đơn chờ xác nhận thủ công
     const pendingManualOrders = orders.filter(o => o.status === 'PENDING' && o.deliveryMode === 'MANUAL').length;
 
-    // Tổng account còn sẵn sàng
-    const availableAccounts = accounts.filter(a => a.status === 'AVAILABLE').length;
+    // Tổng account còn sẵn sàng trong kho từ Database
+    const availableAccounts = accountsPage?.totalElements ?? 0;
 
     // Chuẩn bị dữ liệu biểu đồ (7 ngày gần nhất)
     const chartData = [];
@@ -50,7 +49,7 @@ export const DashboardPage = () => {
       
       const dayRevenue = orders
         .filter(o => (o.status === 'PAID' || o.status === 'COMPLETED') && o.createdAt?.startsWith(dateStr))
-        .reduce((sum, o) => sum + o.totalAmount, 0);
+        .reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
         
       chartData.push({
         name: d.toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }),
@@ -59,7 +58,7 @@ export const DashboardPage = () => {
     }
 
     return { totalRevenue, todayRevenue, pendingManualOrders, availableAccounts, chartData };
-  }, [orders, accounts]);
+  }, [orders, accountsPage?.totalElements]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -120,15 +119,21 @@ export const DashboardPage = () => {
             {orders.slice(0, 5).map(order => (
               <div key={order.id} className="flex items-center justify-between p-3 hover:bg-slate-800/50 rounded-lg transition-colors border-b border-slate-800 last:border-0">
                 <div>
-                  <p className="font-medium">{order.orderCode}</p>
-                  <p className="text-sm text-gray-400">@{order.customer.username}</p>
+                  <p className="font-medium font-mono text-white text-sm">{order.orderCode}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {order.customer?.username ? `@${order.customer.username}` : (order.customer?.firstName || 'Khách hàng')}
+                  </p>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-blue-400">{order.totalAmount.toLocaleString()}đ</p>
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    order.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400' :
-                    order.status === 'PENDING' ? 'bg-orange-500/20 text-orange-400' :
-                    'bg-blue-500/20 text-blue-400'
+                  <p className="font-semibold text-blue-400">
+                    {order.totalAmount !== undefined && order.totalAmount !== null 
+                      ? `${Number(order.totalAmount).toLocaleString('vi-VN')}đ` 
+                      : '0đ'}
+                  </p>
+                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                    order.status === 'COMPLETED' ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
+                    order.status === 'PENDING' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                    'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                   }`}>
                     {order.status}
                   </span>

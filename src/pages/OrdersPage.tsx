@@ -1,5 +1,5 @@
 import { useGetOrdersQuery, useConfirmOrderMutation, useGetOrderByIdQuery } from '../api/orderApi';
-import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Eye, X, Package, User, Wallet } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Eye, X, Package, User, Wallet, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { Pagination } from '../components/ui/Pagination';
@@ -8,13 +8,15 @@ import { useDebounce } from '../hooks/useDebounce';
 export const OrdersPage = () => {
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   const { data: pageResponse, isLoading } = useGetOrdersQuery({
     page,
     size: 10,
-    keyword: debouncedSearchTerm
-  }, { pollingInterval: 5000 });
+    keyword: debouncedSearchTerm || undefined,
+    status: selectedStatus === 'ALL' ? undefined : selectedStatus,
+  });
   
   const orders = pageResponse?.content || [];
   const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
@@ -40,22 +42,105 @@ export const OrdersPage = () => {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-2xl font-bold text-white">Quản lý Đơn hàng</h1>
-        <p className="text-gray-400 mt-1">Theo dõi giao dịch và duyệt đơn hàng thủ công</p>
+        <p className="text-gray-400 mt-1">Theo dõi giao dịch và duyệt đơn hàng</p>
       </div>
 
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Tìm kiếm mã đơn, tên khách..." 
+      {/* Filter & Search Bar */}
+      <div className="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-4 items-center justify-between">
+        {/* Tabs Trạng thái */}
+        <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 w-full md:w-auto">
+          <button
+            onClick={() => {
+              setSelectedStatus('ALL');
+              setPage(0);
+            }}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              selectedStatus === 'ALL'
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Tất cả
+          </button>
+          <button
+            onClick={() => {
+              setSelectedStatus('PENDING');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              selectedStatus === 'PENDING'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Clock size={13} />
+            Chờ thanh toán
+          </button>
+          <button
+            onClick={() => {
+              setSelectedStatus('COMPLETED');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              selectedStatus === 'COMPLETED'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <CheckCircle size={13} />
+            Hoàn thành
+          </button>
+          <button
+            onClick={() => {
+              setSelectedStatus('CANCELLED');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              selectedStatus === 'CANCELLED'
+                ? 'bg-rose-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <XCircle size={13} />
+            Đã hủy
+          </button>
+          <button
+            onClick={() => {
+              setSelectedStatus('REFUNDED');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
+              selectedStatus === 'REFUNDED'
+                ? 'bg-purple-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <RotateCcw size={13} />
+            Đã hoàn tiền
+          </button>
+        </div>
+
+        {/* Ô Tìm kiếm */}
+        <div className="relative w-full md:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+          <input
+            type="text"
+            placeholder="Tìm mã đơn, tên khách..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               setPage(0);
             }}
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetPaymentConfigsQuery, useCreatePaymentConfigMutation } from '../api/paymentApi';
+import { useGetPaymentConfigsQuery, useGetWebhookInfoQuery, useCreatePaymentConfigMutation } from '../api/paymentApi';
 import { useChangePasswordMutation, useGetMeQuery, useUpdateMeMutation } from '../api/userApi';
-import { Save, CreditCard, Loader2, ChevronDown, ChevronUp, Search, KeyRound, Eye, EyeOff, MessageCircle, Clock, Sliders, Zap } from 'lucide-react';
+import { Save, CreditCard, Loader2, ChevronDown, ChevronUp, Search, KeyRound, Eye, EyeOff, MessageCircle, Clock, Sliders, Zap, Copy, Check, BookOpen, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export const SettingsPage = () => {
   const { data: configs = [], isLoading } = useGetPaymentConfigsQuery();
+  const { data: webhookInfo } = useGetWebhookInfoQuery();
   const [createConfig, { isLoading: isSaving }] = useCreatePaymentConfigMutation();
 
   // Lấy config mặc định hiện tại (nếu có)
@@ -26,6 +27,24 @@ export const SettingsPage = () => {
   const [isWebhookConfigOpen, setIsWebhookConfigOpen] = useState(true);
   const [isOrderConfigOpen, setIsOrderConfigOpen] = useState(true);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showSePayGuide, setShowSePayGuide] = useState(false);
+  const [isCopiedWebhook, setIsCopiedWebhook] = useState(false);
+
+  // Link Webhook được trích xuất tự động 100% từ biến môi trường của Backend hoặc Domain máy chủ
+  const webhookUrl = webhookInfo?.sepayWebhookUrl || (
+    typeof window !== 'undefined'
+      ? (import.meta.env.VITE_API_BASE_URL
+          ? import.meta.env.VITE_API_BASE_URL.replace(/\/api\/v1\/?$/, '') + '/api/webhook/sepay'
+          : `${window.location.origin}/api/webhook/sepay`)
+      : 'http://localhost:8080/api/webhook/sepay'
+  );
+
+  const handleCopyWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setIsCopiedWebhook(true);
+    toast.success('Đã sao chép URL Webhook!');
+    setTimeout(() => setIsCopiedWebhook(false), 2000);
+  };
 
   const { data: currentUser } = useGetMeQuery();
   const [updateMe, { isLoading: isUpdatingUser }] = useUpdateMeMutation();
@@ -322,29 +341,104 @@ export const SettingsPage = () => {
                     </div>
 
                     {formData.webhookProvider === 'SEPAY' && (
-                      <div className="animate-in fade-in slide-in-from-top-2 duration-200 pt-2 border-t border-slate-800">
-                        <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
-                          <span>Webhook API Key</span>
-                          <a href="https://my.sepay.vn" target="_blank" rel="noreferrer" title="Đăng nhập SePay -> Chọn 'Tích hợp Webhook' ở menu bên trái để lấy mã API Key" className="text-xs text-blue-400 hover:underline">
-                            Lấy API Key ở đâu?
-                          </a>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showApiKey ? 'text' : 'password'}
-                            name="webhookApiKey"
-                            value={formData.webhookApiKey}
-                            onChange={handleChange}
-                            placeholder="Mật khẩu bí mật để nhận Webhook từ SePay"
-                            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 text-sm font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowApiKey(!showApiKey)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
-                          >
-                            {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
-                          </button>
+                      <div className="space-y-4 pt-3 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                        {/* URL Webhook cần dán vào SePay */}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              🔗 <strong>URL Webhook của bạn</strong> (Dán vào SePay)
+                            </span>
+                            <span className="text-[11px] text-emerald-400 font-normal">Sẵn sàng nhận dữ liệu</span>
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={webhookUrl}
+                              className="w-full bg-slate-950/70 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 font-mono select-all focus:outline-none"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleCopyWebhook}
+                              className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                            >
+                              {isCopiedWebhook ? <Check size={14} className="text-white" /> : <Copy size={14} />}
+                              <span>{isCopiedWebhook ? 'Đã chép' : 'Sao chép'}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Nút bật/tắt Hướng dẫn 3 bước */}
+                        <div className="bg-blue-950/30 border border-blue-800/40 rounded-xl p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-blue-300 flex items-center gap-1.5">
+                              <BookOpen size={15} className="text-blue-400" />
+                              Hướng dẫn kết nối SePay trong 3 bước (Người mới)
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setShowSePayGuide(!showSePayGuide)}
+                              className="text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
+                            >
+                              {showSePayGuide ? 'Thu gọn' : 'Xem chi tiết'}
+                            </button>
+                          </div>
+
+                          {showSePayGuide && (
+                            <div className="text-xs text-slate-300 space-y-2.5 pt-2 border-t border-blue-900/40 animate-in fade-in slide-in-from-top-1 duration-200">
+                              <div className="flex items-start gap-2">
+                                <span className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">1</span>
+                                <div>
+                                  Đăng nhập vào <a href="https://my.sepay.vn" target="_blank" rel="noreferrer" className="text-blue-400 underline font-medium inline-flex items-center gap-0.5">my.sepay.vn <ExternalLink size={11} /></a> $\rightarrow$ Menu bên trái chọn <strong>Tích hợp Webhook</strong> $\rightarrow$ Bấm <strong>Tạo Webhook mới</strong>.
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-2">
+                                <span className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">2</span>
+                                <div>
+                                  Dán <strong>URL Webhook</strong> vừa copy ở trên vào ô URL. Ở mục <em>Điều kiện gửi Webhook</em>, chọn: <strong>"Gửi tất cả giao dịch"</strong> (Mặc định).
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-2">
+                                <span className="w-5 h-5 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 mt-0.5">3</span>
+                                <div>
+                                  Copy chuỗi <strong>API Key</strong> bí mật trên SePay dán vào ô <em>Webhook API Key</em> bên dưới $\rightarrow$ Bấm <strong>Lưu Cấu Hình</strong> là hoàn tất!
+                                </div>
+                              </div>
+
+                              <div className="bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-lg text-amber-300 text-[11px] leading-relaxed">
+                                💡 <strong>Không cần cấu hình mã:</strong> Server BotShop đã tự động nhận diện cả mã Đơn hàng (<code>ORD_...</code>) và Nạp ví (<code>NAP_...</code>). Bạn <strong>không cần</strong> phải vào mục <em>"Cấu hình mã thanh toán"</em> hay cài Regex phức tạp!
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Webhook API Key */}
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                            <span>Webhook API Key</span>
+                            <a href="https://my.sepay.vn" target="_blank" rel="noreferrer" className="text-xs text-blue-400 hover:underline flex items-center gap-1">
+                              Lấy API Key trên SePay <ExternalLink size={12} />
+                            </a>
+                          </label>
+                          <div className="relative">
+                            <input
+                              type={showApiKey ? 'text' : 'password'}
+                              name="webhookApiKey"
+                              value={formData.webhookApiKey}
+                              onChange={handleChange}
+                              placeholder="Dán mã API Key lấy từ SePay vào đây"
+                              className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 text-sm font-mono"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 transition-colors"
+                            >
+                              {showApiKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}

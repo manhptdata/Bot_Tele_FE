@@ -9,10 +9,36 @@ export interface TelegramCustomer {
   lastName?: string;
   totalOrders: number;
   totalSpent: number;
+  walletBalance?: number;
   firstSeen?: string;
   lastSeen?: string;
   isDeleted: boolean;
   deletedAt?: string;
+}
+
+export interface WalletTransaction {
+  id: number;
+  type: string; // DEPOSIT, PURCHASE, REFUND, ADMIN_ADJUST, DEPOSIT_REQUEST
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  referenceCode?: string;
+  orderCode?: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface CustomerOrder {
+  id: number;
+  orderCode: string;
+  subtotalAmount: number;
+  feeAmount: number;
+  totalAmount: number;
+  status: string;
+  deliveryMode: string;
+  paymentMethod: string;
+  adminNote?: string;
+  createdAt: string;
 }
 
 export interface CustomerQueryParams {
@@ -38,6 +64,14 @@ export const customerApi = baseApi.injectEndpoints({
     }),
     getCustomerById: builder.query<TelegramCustomer, number>({
       query: (id) => `/admin/customers/${id}`,
+      providesTags: ['Customer'],
+    }),
+    getCustomerWalletTransactions: builder.query<WalletTransaction[], number>({
+      query: (id) => `/admin/customers/${id}/wallet-transactions`,
+      providesTags: ['Customer'],
+    }),
+    getCustomerOrders: builder.query<CustomerOrder[], number>({
+      query: (id) => `/admin/customers/${id}/orders`,
       providesTags: ['Customer'],
     }),
     softDeleteCustomer: builder.mutation<{ message: string }, number>({
@@ -83,9 +117,12 @@ export const customerApi = baseApi.injectEndpoints({
 export const {
   useGetCustomersQuery,
   useGetCustomerByIdQuery,
+  useGetCustomerWalletTransactionsQuery,
+  useGetCustomerOrdersQuery,
   useSoftDeleteCustomerMutation,
   useSoftDeleteBatchMutation,
   useRestoreCustomerMutation,
   useRestoreBatchMutation,
   useHardDeleteCustomerMutation,
 } = customerApi;
+
