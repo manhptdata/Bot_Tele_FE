@@ -59,7 +59,7 @@ export const ProfilePage = () => {
         telegramUsername: formData.telegramUsername.trim() || undefined,
         isSupportContact: formData.isSupportContact,
       }).unwrap();
-      
+
       toast.success('Cập nhật hồ sơ thành công!');
     } catch (error: any) {
       toast.error(error?.data?.message || 'Lỗi khi cập nhật hồ sơ');
@@ -83,7 +83,7 @@ export const ProfilePage = () => {
         oldPassword: passwordForm.oldPassword,
         newPassword: passwordForm.newPassword,
       }).unwrap();
-      
+
       toast.success('Đổi mật khẩu thành công! Hãy dùng mật khẩu mới cho lần đăng nhập sau.');
       setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
     } catch (err: any) {
@@ -164,7 +164,7 @@ export const ProfilePage = () => {
               value={formData.telegramChatId}
               onChange={(e) => setFormData({ ...formData, telegramChatId: e.target.value })}
               className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-sm font-mono"
-              placeholder="Ví dụ: 8621276989"
+              placeholder="Ví dụ: 1234567890"
             />
             <p className="mt-1.5 text-xs text-slate-500">
               ID này được dùng để nhận mã OTP khi khôi phục tài khoản qua Telegram.
