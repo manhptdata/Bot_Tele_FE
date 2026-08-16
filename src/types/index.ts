@@ -118,4 +118,5 @@ export interface PaymentConfig {
   paymentTimeoutMinutes?: number;
   bankFeeType?: 'FIXED' | 'PERCENT';
   bankFeeAmount?: number;
+  guideContent?: string;
 }

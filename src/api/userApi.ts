@@ -9,6 +9,10 @@ export interface User {
   role: 'ADMIN' | 'STAFF';
   isActive: boolean;
   telegramChatId?: string;
+  phoneNumber?: string;
+  zalo?: string;
+  telegramUsername?: string;
+  isSupportContact?: boolean;
   createdAt: string;
 }
 
@@ -18,6 +22,10 @@ export interface UserCreateRequest {
   fullName: string;
   email?: string;
   role: 'ADMIN' | 'STAFF';
+  phoneNumber?: string;
+  zalo?: string;
+  telegramUsername?: string;
+  isSupportContact?: boolean;
 }
 
 export interface UserUpdateRequest {
@@ -27,12 +35,20 @@ export interface UserUpdateRequest {
   isActive: boolean;
   newPassword?: string;
   telegramChatId?: string;
+  phoneNumber?: string;
+  zalo?: string;
+  telegramUsername?: string;
+  isSupportContact?: boolean;
 }
 
 export interface UserProfileUpdateRequest {
   fullName: string;
   email?: string;
   telegramChatId?: string;
+  phoneNumber?: string;
+  zalo?: string;
+  telegramUsername?: string;
+  isSupportContact?: boolean;
   newPassword?: string;
 }
 
