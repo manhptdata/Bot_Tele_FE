@@ -62,6 +62,28 @@ export interface Account {
   orderCode?: string;
 }
 
+export interface ReservedAccountDto {
+  accountId: number;
+  orderItemId: number;
+  fieldNames: string[];
+  accountData: string[];
+  status: string;
+}
+
+export interface AvailableAccountDto {
+  id: number;
+  fieldNames: string[];
+  maskedValues: string[];
+}
+
+export interface AvailableAccountPageDto {
+  accounts: AvailableAccountDto[];
+  availableCount: number;
+  page: number;
+  size: number;
+  totalPages: number;
+}
+
 export interface OrderItem {
   id: number;
   productId: number;
@@ -70,6 +92,7 @@ export interface OrderItem {
   unitPrice: number;
   subtotal: number;
   deliveredAccounts: string[][];
+  reservedAccounts?: ReservedAccountDto[];
 }
 
 export interface OrderDetail {
@@ -81,6 +104,10 @@ export interface OrderDetail {
   status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';
   paymentMethod: 'WALLET' | 'BANK_TRANSFER' | 'FREE';
+  deliverySource?: 'INVENTORY' | 'CUSTOM';
+  manualDeliveryContent?: string;
+  manuallyDeliveredBy?: string;
+  manuallyDeliveredAt?: string;
   adminNote?: string;
   createdAt: string;
   customer: {

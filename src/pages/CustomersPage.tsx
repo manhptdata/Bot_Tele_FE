@@ -16,7 +16,10 @@ import {
   useHardDeleteCustomerMutation,
   TelegramCustomer,
 } from '../api/customerApi';
+import { useGetOrderByIdQuery } from '../api/orderApi';
 import { Pagination } from '../components/ui/Pagination';
+import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
+import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
 import {
   Users,
   Search,
@@ -44,6 +47,8 @@ import {
   ShieldAlert,
   Send,
   KeyRound,
+  Package,
+  ShoppingCart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -609,6 +614,15 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
   const [activeTab, setActiveTab] = useState<'WALLET' | 'ORDERS'>('WALLET');
   const [copiedId, setCopiedId] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [selectedDetailOrderId, setSelectedDetailOrderId] = useState<number | null>(null);
+  const [copiedOrderCode, setCopiedOrderCode] = useState<string | null>(null);
+
+  const handleCopyOrderCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedOrderCode(code);
+    toast.success('Đã sao chép mã đơn');
+    setTimeout(() => setCopiedOrderCode(null), 2000);
+  };
 
   // Lấy dữ liệu chi tiết mới nhất của khách hàng
   const { data: latestCustomer } = useGetCustomerByIdQuery(customer.id);
@@ -875,11 +889,25 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                   {orders.map((order) => (
                     <div
                       key={order.id}
-                      className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors flex items-center justify-between"
+                      onClick={() => setSelectedDetailOrderId(order.id)}
+                      className="bg-slate-950/60 p-3.5 rounded-xl border border-slate-800 hover:border-blue-500/50 hover:bg-slate-900/60 transition-all cursor-pointer flex items-center justify-between group"
                     >
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-blue-400 text-sm">{order.orderCode}</span>
+                          <span className="font-mono font-bold text-blue-400 text-sm group-hover:text-blue-300">
+                            {order.orderCode}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyOrderCode(order.orderCode);
+                            }}
+                            className="text-slate-500 hover:text-blue-400 p-0.5"
+                            title="Sao chép mã đơn"
+                          >
+                            {copiedOrderCode === order.orderCode ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                          </button>
                           {getOrderStatusBadge(order.status)}
                           <span className="text-xs text-slate-500">{formatDate(order.createdAt)}</span>
                         </div>
@@ -891,10 +919,15 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-base font-bold text-white">
-                          {formatMoney(order.totalAmount)}
-                        </span>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <span className="text-base font-bold text-white font-mono">
+                            {formatMoney(order.totalAmount)}
+                          </span>
+                        </div>
+                        <div className="w-7 h-7 rounded-lg bg-slate-800 group-hover:bg-blue-600 group-hover:text-white text-slate-400 flex items-center justify-center transition-colors">
+                          <Eye size={14} />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -919,6 +952,16 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         </div>
       </div>
 
+      {/* Modal Chi Tiết Đơn Hàng Con (Khi click vào bất kỳ đơn nào) */}
+      {selectedDetailOrderId && (
+        <CustomerOrderDetailModal
+          orderId={selectedDetailOrderId}
+          onClose={() => setSelectedDetailOrderId(null)}
+          formatMoney={formatMoney}
+          formatDate={formatDate}
+        />
+      )}
+
       {/* MODAL CON: ĐIỀU CHỈNH VÍ / HOÀN TIỀN */}
       {showAdjustModal && (
         <AdjustWalletModal
@@ -928,6 +971,206 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
         />
       )}
     </>
+  );
+};
+
+// Component Modal Chi Tiết Đơn Hàng Lồng Trong Khách Hàng
+const CustomerOrderDetailModal: React.FC<{
+  orderId: number;
+  onClose: () => void;
+  formatMoney: (val: number | undefined | null) => string;
+  formatDate: (val: string | undefined) => string;
+}> = ({ orderId, onClose, formatMoney, formatDate }) => {
+  const { data: orderDetail, isLoading } = useGetOrderByIdQuery(orderId);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopy = (text: string, key: string, msg: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    toast.success(msg);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const generateTelegramDeliveryMessage = () => {
+    if (!orderDetail) return '';
+    const itemsText = orderDetail.items?.map((i) => `• *${i.productName}* (x${i.quantity})`).join('\n') || '';
+
+    let accountsBlock = '';
+    if (orderDetail.deliveryMode === 'AUTO') {
+      const accs = orderDetail.items?.flatMap((i) => i.deliveredAccounts || []) || [];
+      if (accs.length > 0) {
+        accountsBlock = accs.map((a, idx) => `👉 Acc #${idx + 1}: ${a.join(' | ')}`).join('\n');
+      }
+    }
+
+    const payload = orderDetail.manualDeliveryContent || accountsBlock || orderDetail.adminNote || '[Chưa nhập tài khoản]';
+
+    return `🎉 CẢM ƠN BẠN ĐÃ MUA HÀNG TẠI SHOP!
+──────────────────────────
+📦 Mã đơn hàng: #${orderDetail.orderCode}
+👤 Khách hàng: ${orderDetail.customer?.firstName || 'Khách'} ${orderDetail.customer?.username ? `(@${orderDetail.customer.username})` : ''}
+🛒 Mặt hàng:
+${itemsText}
+💰 Đã thanh toán: ${formatMoney(orderDetail.totalAmount)}
+⏰ Thời gian: ${formatDate(orderDetail.createdAt)}
+
+🔑 THÔNG TIN TÀI KHOẢN / BÀN GIAO:
+${payload}
+
+🛡️ Bảo hành: Hỗ trợ 1 đổi 1 trong suốt thời gian sử dụng
+📞 Cần hỗ trợ xin nhắn tin trực tiếp cho Admin!`;
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95">
+        {/* Header */}
+        <div className="p-4 border-b border-slate-800 bg-slate-800/70 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <ShoppingCart size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-white text-base">#{orderDetail?.orderCode}</span>
+                {orderDetail && (
+                  <button
+                    onClick={() => handleCopy(orderDetail.orderCode, 'CODE', 'Đã chép mã đơn')}
+                    className="text-slate-400 hover:text-blue-400 p-0.5"
+                  >
+                    {copiedKey === 'CODE' ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-slate-400">{orderDetail ? formatDate(orderDetail.createdAt) : ''}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {orderDetail && (
+              <button
+                onClick={() => handleCopy(generateTelegramDeliveryMessage(), 'GEN_MSG', 'Đã sao chép toàn bộ tin nhắn giao hàng!')}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-600/30"
+              >
+                {copiedKey === 'GEN_MSG' ? <Check size={13} /> : <Send size={13} />}
+                <span>Sao chép tin nhắn gửi khách</span>
+              </button>
+            )}
+            <button onClick={onClose} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Nội dung */}
+        <div className="p-5 overflow-y-auto custom-scrollbar flex-1 space-y-4">
+          {isLoading ? (
+            <div className="py-12 text-center text-slate-400">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+              Đang tải chi tiết đơn...
+            </div>
+          ) : orderDetail ? (
+            <>
+              {/* Tóm tắt thanh toán & Khách hàng */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
+                  <div className="text-slate-400 uppercase tracking-wider font-semibold text-[10px]">Khách hàng</div>
+                  <div className="text-white font-medium">{orderDetail.customer?.firstName || 'Khách'}</div>
+                  <div className="text-blue-400 font-mono flex items-center gap-1">
+                    {orderDetail.customer?.username ? `@${orderDetail.customer.username}` : `ID: ${orderDetail.customer?.telegramId}`}
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-xs space-y-1.5">
+                  <div className="text-slate-400 uppercase tracking-wider font-semibold text-[10px]">Thanh toán</div>
+                  <div className="text-emerald-400 font-bold font-mono text-sm">{formatMoney(orderDetail.totalAmount)}</div>
+                  <div className="text-slate-300 text-[11px]">{orderDetail.paymentMethod === 'BANK_TRANSFER' ? '🏦 SePay CK' : '💳 Ví Bot'}</div>
+                </div>
+              </div>
+
+              {/* 🚀 XỬ LÝ GIAO HÀNG THỦ CÔNG HOẶC XỬ LÝ LỖI GIAO HÀNG */}
+              {orderDetail.deliveryMode === 'MANUAL' && orderDetail.status === 'PAID_MANUAL_PENDING' ? (
+                <ManualDeliveryPanel order={orderDetail} />
+              ) : orderDetail.deliveryMode === 'AUTO' && orderDetail.status === 'DELIVERY_FAILED' ? (
+                <FailedAutoDeliveryPanel order={orderDetail} />
+              ) : (
+                <>
+                  {/* THÔNG TIN BÀN GIAO ĐÃ HOÀN TẤT */}
+                  {orderDetail.status === 'COMPLETED' && (
+                    <div className="p-3.5 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-emerald-400">✅ Đơn hàng đã bàn giao thành công</span>
+                        <span className="text-slate-400">
+                          Nguồn: <strong className="text-emerald-300 font-mono">{orderDetail.deliverySource === 'CUSTOM' ? 'Tự nhập' : 'Kho hàng'}</strong>
+                        </span>
+                      </div>
+                      {orderDetail.manualDeliveryContent && (
+                        <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-200 whitespace-pre-wrap select-all">
+                          {orderDetail.manualDeliveryContent}
+                        </div>
+                      )}
+                      <div className="flex justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-800/80">
+                        <span>Bởi: {orderDetail.manuallyDeliveredBy || 'Hệ thống'}</span>
+                        {orderDetail.manuallyDeliveredAt && <span>Lúc: {formatDate(orderDetail.manuallyDeliveredAt)}</span>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mặt hàng đã mua */}
+                  <div className="space-y-2.5">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Package size={14} className="text-blue-400" /> Mặt Hàng Đã Mua
+                    </h4>
+
+                    {orderDetail.items?.map((item) => (
+                      <div key={item.id} className="bg-slate-800/50 rounded-xl border border-slate-700/80 p-3.5 space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className="font-bold text-white text-sm">{item.productName}</div>
+                            <div className="text-xs text-slate-400">
+                              Số lượng: <span className="text-white font-semibold">{item.quantity}</span> x {formatMoney(item.unitPrice)}
+                            </div>
+                          </div>
+                          <div className="text-emerald-400 font-bold font-mono text-sm">
+                            {formatMoney(item.subtotal)}
+                          </div>
+                        </div>
+
+                        {/* Tài khoản đã giao nếu là AUTO */}
+                        {item.deliveredAccounts && item.deliveredAccounts.length > 0 ? (
+                          <div className="pt-2 border-t border-slate-700/60 space-y-1.5">
+                            <span className="text-[11px] font-semibold text-slate-400">Tài khoản đã xuất:</span>
+                            {item.deliveredAccounts.map((acc, idx) => (
+                              <div key={idx} className="bg-slate-950 p-2 rounded font-mono text-xs text-slate-300 flex justify-between items-center">
+                                <span className="break-all">{acc.join(' | ')}</span>
+                                <button
+                                  onClick={() => handleCopy(acc.join(' | '), `ACC_${idx}`, 'Đã chép tài khoản')}
+                                  className="text-slate-500 hover:text-blue-400 ml-2"
+                                >
+                                  {copiedKey === `ACC_${idx}` ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 italic pt-1">
+                            {orderDetail.deliveryMode === 'MANUAL'
+                              ? 'Đơn hàng giao thủ công.'
+                              : 'Không có tài khoản tự động xuất kho.'}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="py-8 text-center text-slate-400">Không tìm thấy thông tin đơn hàng</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
