@@ -49,6 +49,14 @@ export const orderApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Order'],
     }),
+    refundOrder: builder.mutation<{ message: string; orderCode: string; status: string }, { id: number; reason?: string }>({
+      query: ({ id, reason }) => ({
+        url: `/admin/orders/${id}/refund`,
+        method: 'POST',
+        body: { reason },
+      }),
+      invalidatesTags: ['Order', 'Customer', 'Product'],
+    }),
   }),
 });
 
@@ -58,4 +66,5 @@ export const {
   useConfirmOrderMutation,
   useRetryDeliveryMutation,
   useMarkManuallyDeliveredMutation,
+  useRefundOrderMutation,
 } = orderApi;

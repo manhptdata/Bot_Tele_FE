@@ -4,8 +4,9 @@ import {
   useGetOrderByIdQuery,
   useRetryDeliveryMutation,
   useMarkManuallyDeliveredMutation,
+  useRefundOrderMutation,
 } from '../api/orderApi';
-import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Eye, X, Package, User, Wallet, RotateCcw } from 'lucide-react';
+import { ShoppingCart, CheckCircle, Clock, XCircle, Search, Eye, X, Package, User, Wallet, RotateCcw, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 import { Pagination } from '../components/ui/Pagination';
@@ -28,8 +29,11 @@ export const OrdersPage = () => {
   const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
   const [retryDelivery, { isLoading: isRetrying }] = useRetryDeliveryMutation();
   const [markManuallyDelivered, { isLoading: isMarkingDelivered }] = useMarkManuallyDeliveredMutation();
+  const [refundOrder, { isLoading: isRefunding }] = useRefundOrderMutation();
 
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+  const [refundTargetOrder, setRefundTargetOrder] = useState<{ id: number; orderCode: string; totalAmount: number; customerName: string } | null>(null);
+  const [refundReason, setRefundReason] = useState('');
   
   const { data: orderDetail, isLoading: isDetailLoading } = useGetOrderByIdQuery(selectedOrderId as number, {
     skip: selectedOrderId === null
@@ -64,6 +68,18 @@ export const OrdersPage = () => {
       toast.success('Đã đánh dấu đơn hàng hoàn thành.');
     } catch (err: any) {
       toast.error(err?.data?.message || 'Không thể đánh dấu đã giao.');
+    }
+  };
+
+  const handleRefundSubmit = async () => {
+    if (!refundTargetOrder) return;
+    try {
+      const res = await refundOrder({ id: refundTargetOrder.id, reason: refundReason.trim() || undefined }).unwrap();
+      toast.success(res.message || 'Đã hoàn tiền vào ví khách hàng thành công!');
+      setRefundTargetOrder(null);
+      setRefundReason('');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Có lỗi xảy ra khi hoàn tiền đơn hàng.');
     }
   };
 
@@ -282,10 +298,29 @@ export const OrdersPage = () => {
                               e.stopPropagation();
                               handleMarkDelivered(order.id);
                             }}
-                            disabled={isRetrying || isMarkingDelivered}
+                            disabled={isRetrying || isMarkingDelivered || isRefunding}
                             className="btn bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-3 py-1 text-sm disabled:opacity-50"
                           >
                             Đã giao
+                          </button>
+                        )}
+                        {['PAID', 'PAID_MANUAL_PENDING', 'COMPLETED', 'PAID_REVIEW_REQUIRED', 'DELIVERY_FAILED'].includes(order.status) && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRefundTargetOrder({
+                                id: order.id,
+                                orderCode: order.orderCode,
+                                totalAmount: order.totalAmount,
+                                customerName: order.customer.firstName,
+                              });
+                              setRefundReason('');
+                            }}
+                            disabled={isRefunding}
+                            className="btn bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600 hover:text-white px-3 py-1 text-sm disabled:opacity-50"
+                            title="Hoàn tiền vào ví khách hàng"
+                          >
+                            Hoàn tiền
                           </button>
                         )}
                       </div>
@@ -371,6 +406,34 @@ export const OrdersPage = () => {
                     </div>
                   </div>
 
+                  {/* Hành động hoàn tiền trong modal chi tiết */}
+                  {['PAID', 'PAID_MANUAL_PENDING', 'COMPLETED', 'PAID_REVIEW_REQUIRED', 'DELIVERY_FAILED'].includes(orderDetail.status) && (
+                    <div className="bg-red-950/30 border border-red-800/40 p-4 rounded-xl flex items-center justify-between">
+                      <div>
+                        <div className="font-semibold text-red-300 flex items-center gap-2">
+                          <RotateCcw size={16} /> Hoàn tiền đơn hàng
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1">
+                          Số tiền {orderDetail.totalAmount.toLocaleString()}đ sẽ được hoàn trực tiếp vào Ví Bot của khách hàng.
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setRefundTargetOrder({
+                            id: orderDetail.id,
+                            orderCode: orderDetail.orderCode,
+                            totalAmount: orderDetail.totalAmount,
+                            customerName: orderDetail.customer.firstName,
+                          });
+                          setRefundReason('');
+                        }}
+                        className="btn bg-red-600 text-white hover:bg-red-500 px-4 py-2 text-sm shadow-md"
+                      >
+                        Hoàn tiền
+                      </button>
+                    </div>
+                  )}
+
                   {/* Sản phẩm & Tài khoản đã giao */}
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
@@ -418,6 +481,68 @@ export const OrdersPage = () => {
               ) : (
                 <div className="text-center text-slate-400 py-8">Không tìm thấy thông tin đơn hàng</div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Xác nhận Hoàn tiền */}
+      {refundTargetOrder && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2 text-red-400">
+                <RotateCcw size={20} />
+                Xác nhận hoàn tiền đơn hàng
+              </h3>
+              <button onClick={() => setRefundTargetOrder(null)} className="text-gray-400 hover:text-white p-1 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-red-950/40 border border-red-800/50 p-3 rounded-xl text-sm text-red-300 flex items-start gap-2.5">
+                <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                <div>
+                  Hành động này sẽ hoàn <b className="text-white">{refundTargetOrder.totalAmount.toLocaleString()}đ</b> vào <b>Ví Bot</b> của khách hàng <b className="text-white">{refundTargetOrder.customerName}</b> và gửi tin nhắn Telegram thông báo ngay lập tức.
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mã đơn hàng
+                </label>
+                <div className="font-mono text-white font-semibold bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
+                  {refundTargetOrder.orderCode}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Lý do hoàn tiền (Tùy chọn)
+                </label>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Ví dụ: Tài khoản bị lỗi, Khách đổi ý, Hết hàng thủ công..."
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-red-500 min-h-[80px]"
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  onClick={() => setRefundTargetOrder(null)}
+                  className="btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 text-sm"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={handleRefundSubmit}
+                  disabled={isRefunding}
+                  className="btn bg-red-600 text-white hover:bg-red-500 px-5 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isRefunding ? 'Đang hoàn tiền...' : 'Xác nhận hoàn tiền'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

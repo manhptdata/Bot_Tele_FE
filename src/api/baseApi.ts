@@ -29,6 +29,18 @@ const customBaseQuery: BaseQueryFn<string | FetchArgs, unknown, FetchBaseQueryEr
 export const baseApi = createApi({
   reducerPath: 'api',
   baseQuery: customBaseQuery,
-  tagTypes: ['Product', 'Account', 'Order', 'PaymentConfig', 'Category', 'Notification', 'User', 'Customer'] as const,
+  tagTypes: [
+    'Dashboard',
+    'PaymentEvent',
+    'Product',
+    'Account',
+    'Order',
+    'PaymentConfig',
+    'Category',
+    'Notification',
+    'User',
+    'Customer',
+    'Wallet',
+  ] as const,
   endpoints: (_builder) => ({}),
 });
