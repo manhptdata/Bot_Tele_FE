@@ -304,7 +304,7 @@ export const OrdersPage = () => {
                             Đã giao
                           </button>
                         )}
-                        {['PAID', 'PAID_MANUAL_PENDING', 'COMPLETED', 'PAID_REVIEW_REQUIRED', 'DELIVERY_FAILED'].includes(order.status) && (
+                        {['PAID_MANUAL_PENDING', 'PAID_REVIEW_REQUIRED', 'DELIVERY_FAILED', 'DELIVERY_REVIEW_REQUIRED'].includes(order.status) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
