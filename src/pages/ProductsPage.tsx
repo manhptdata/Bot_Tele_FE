@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useGetProductsQuery, useDeleteProductMutation, useCreateProductMutation, useUpdateProductMutation } from '../api/productApi';
 import { useGetCategoriesQuery } from '../api/categoryApi';
-import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle, Bot } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
@@ -264,11 +265,38 @@ export const ProductsPage = () => {
                     </td>
                     <td className="p-4 text-green-400 font-bold font-mono">{product.price.toLocaleString()}đ</td>
                     <td className="p-4">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${product.stockCount > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                        {product.stockCount}
-                      </span>
+                      {product.deliveryMode === 'AUTO' ? (
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono ${product.stockCount > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                            {product.stockCount} acc
+                          </span>
+                          {product.stockCount === 0 && (
+                            <Link
+                              to="/accounts"
+                              className="inline-flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 px-2 py-0.5 rounded-md font-medium transition-colors"
+                              title="Nhập tài khoản vào kho cho sản phẩm này"
+                            >
+                              <Plus size={11} /> Nạp kho
+                            </Link>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          {product.stockCount} có sẵn
+                        </span>
+                      )}
                     </td>
-                    <td className="p-4 text-xs text-slate-300">{product.deliveryMode === 'AUTO' ? '⚡ Tự động' : '👤 Thủ công'}</td>
+                    <td className="p-4 text-xs font-medium">
+                      {product.deliveryMode === 'AUTO' ? (
+                        <span className="inline-flex items-center gap-1 text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20">
+                          ⚡ Tự động (Kho)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
+                          👤 Thủ công (Admin)
+                        </span>
+                      )}
+                    </td>
                     <td className="p-4">
                       {product.isActive ? (
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-500/20 text-green-400 border border-green-500/30">
@@ -364,32 +392,76 @@ export const ProductsPage = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Loại Giao Hàng</label>
-                  <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.deliveryMode} onChange={(e) => setFormData({...formData, deliveryMode: e.target.value as 'AUTO' | 'MANUAL'})}>
+                  <select 
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    value={formData.deliveryMode} 
+                    onChange={(e) => {
+                      const newMode = e.target.value as 'AUTO' | 'MANUAL';
+                      setFormData(prev => {
+                        let newStock = prev.stockCount;
+                        if (newMode === 'MANUAL' && (newStock === '0' || !newStock)) {
+                          const currentProd = editingId ? products.find(p => p.id === editingId) : null;
+                          newStock = currentProd ? String(currentProd.stockCount ?? 10) : '10';
+                        }
+                        return {
+                          ...prev,
+                          deliveryMode: newMode,
+                          stockCount: newStock
+                        };
+                      });
+                    }}
+                  >
                     <option value="AUTO">⚡ Tự động (Kho)</option>
                     <option value="MANUAL">👤 Thủ công (Admin)</option>
                   </select>
                 </div>
               </div>
 
+              {/* Banner Hướng Dẫn & Cảnh Báo Chế Độ Giao Hàng */}
+              {formData.deliveryMode === 'AUTO' ? (
+                <div className="bg-blue-950/40 border border-blue-500/30 p-3.5 rounded-xl text-xs space-y-1.5 animate-in fade-in">
+                  <div className="flex items-center gap-2 text-blue-300 font-bold">
+                    <Bot size={16} />
+                    <span>Chế độ Giao tự động (AUTO):</span>
+                  </div>
+                  <p className="text-slate-300 leading-relaxed">
+                    • Số lượng tồn kho được <b className="text-emerald-400">hệ thống đếm tự động từ tài khoản thật</b> có sẵn trong <b className="text-white">Kho hàng</b>.
+                  </p>
+                  <p className="text-slate-400">
+                    • Sau khi lưu, bạn chỉ cần vào mục <b className="text-blue-400">Nhập kho</b> để nạp danh sách tài khoản (Email|Password) cho Bot tự phát khi có khách mua.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 animate-in fade-in">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Số lượng tồn kho thủ công (*)</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="Nhập số lượng tồn kho (vd: 50)"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={formData.stockCount}
+                      onChange={(e) => setFormData({ ...formData, stockCount: e.target.value })}
+                    />
+                  </div>
+                  <div className="bg-purple-950/30 border border-purple-500/30 p-3 rounded-xl text-xs text-slate-300 space-y-1">
+                    <div className="flex items-center gap-1.5 text-purple-300 font-bold">
+                      <Package size={14} />
+                      <span>Chế độ Giao thủ công (MANUAL):</span>
+                    </div>
+                    <p className="text-slate-400">
+                      • Bạn tự quản lý con số tồn kho bằng tay. Khi khách thanh toán, bạn sẽ trực tiếp gửi tài khoản cho khách qua chat Telegram.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Link Ảnh Sản Phẩm (Tùy chọn)</label>
                 <input type="url" placeholder="https://example.com/product.png" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} />
               </div>
-
-              {formData.deliveryMode === 'MANUAL' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Tồn kho giao thủ công (*)</label>
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="1"
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    value={formData.stockCount}
-                    onChange={(e) => setFormData({ ...formData, stockCount: e.target.value })}
-                  />
-                </div>
-              )}
               
               <div className="pt-2 border-t border-slate-700/50">
                 <div className="flex justify-between items-center mb-2">
