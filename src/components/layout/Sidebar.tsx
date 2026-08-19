@@ -40,7 +40,7 @@ const navItems: NavItem[] = [
     icon: ShoppingCart,
     children: [
       { path: '/orders', label: 'Danh sách đơn hàng', icon: ClipboardList },
-      { path: '/payment-events', label: 'Giao dịch Webhook', icon: Receipt },
+      { path: '/payment-events', label: 'Giao dịch chuyển khoản', icon: Receipt },
     ],
   },
   { path: '/customers', label: 'Khách hàng', icon: Users },
@@ -85,11 +85,10 @@ export const Sidebar = () => {
               <div key={item.label} className="space-y-1">
                 <button
                   onClick={() => setIsOrderMenuOpen(!isOrderMenuOpen)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${
-                    hasActiveChild
-                      ? 'bg-blue-600/10 text-blue-400 font-semibold'
-                      : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
-                  }`}
+                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${hasActiveChild
+                    ? 'bg-blue-600/10 text-blue-400 font-semibold'
+                    : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
                     <Icon size={20} className={hasActiveChild ? 'text-blue-400' : 'text-gray-400'} />
@@ -113,11 +112,10 @@ export const Sidebar = () => {
                         <Link
                           key={child.path}
                           to={child.path}
-                          className={`flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                            isChildActive
-                              ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
-                              : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
-                          }`}
+                          className={`flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${isChildActive
+                            ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
+                            : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
+                            }`}
                         >
                           <ChildIcon size={15} />
                           <span>{child.label}</span>
@@ -136,11 +134,10 @@ export const Sidebar = () => {
             <Link
               key={item.path}
               to={item.path!}
-              className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
-                isActive
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
-                  : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
-              }`}
+              className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${isActive
+                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
+                : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
+                }`}
             >
               <Icon size={20} />
               <span className="font-medium text-sm">{item.label}</span>

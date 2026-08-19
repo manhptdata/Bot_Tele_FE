@@ -1,12 +1,41 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetPaymentConfigsQuery, useGetWebhookInfoQuery, useCreatePaymentConfigMutation } from '../api/paymentApi';
-import { Save, CreditCard, Loader2, ChevronDown, ChevronUp, Search, Clock, Sliders, Zap, Copy, Check, BookOpen, ExternalLink, Eye, EyeOff } from 'lucide-react';
+import { 
+  useGetPaymentConfigsQuery, 
+  useGetWebhookInfoQuery, 
+  useCreatePaymentConfigMutation,
+  useUpdatePaymentConfigMutation 
+} from '../api/paymentApi';
+import { 
+  Save, 
+  CreditCard, 
+  Loader2, 
+  ChevronDown, 
+  ChevronUp, 
+  Search, 
+  Clock, 
+  Sliders, 
+  Zap, 
+  Copy, 
+  Check, 
+  BookOpen, 
+  ExternalLink, 
+  Eye, 
+  EyeOff,
+  ShieldCheck,
+  Lock,
+  X,
+  AlertTriangle
+} from 'lucide-react';
 import toast from 'react-hot-toast';
+import { PaymentConfigSaveRequest } from '../types';
 
 export const SettingsPage = () => {
   const { data: configs = [], isLoading } = useGetPaymentConfigsQuery();
   const { data: webhookInfo } = useGetWebhookInfoQuery();
-  const [createConfig, { isLoading: isSaving }] = useCreatePaymentConfigMutation();
+  const [createConfig, { isLoading: isCreating }] = useCreatePaymentConfigMutation();
+  const [updateConfig, { isLoading: isUpdating }] = useUpdatePaymentConfigMutation();
+
+  const isSaving = isCreating || isUpdating;
 
   // Lấy config mặc định hiện tại (nếu có)
   const defaultConfig = configs.find(c => c.isDefault) || null;
@@ -16,7 +45,7 @@ export const SettingsPage = () => {
     accountNumber: defaultConfig?.accountNumber || '',
     accountHolder: defaultConfig?.accountHolder || '',
     webhookProvider: defaultConfig?.webhookProvider || 'SEPAY',
-    webhookApiKey: defaultConfig?.webhookApiKey || '',
+    webhookApiKey: '',
     paymentTimeoutMinutes: defaultConfig?.paymentTimeoutMinutes !== undefined ? defaultConfig.paymentTimeoutMinutes : 5,
     bankFeeType: defaultConfig?.bankFeeType || 'FIXED',
     bankFeeAmount: defaultConfig?.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
@@ -30,6 +59,12 @@ export const SettingsPage = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSePayGuide, setShowSePayGuide] = useState(false);
   const [isCopiedWebhook, setIsCopiedWebhook] = useState(false);
+
+  // Modal Step-up Password Verification
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [pendingPayload, setPendingPayload] = useState<PaymentConfigSaveRequest | null>(null);
 
   const DEFAULT_GUIDE_TEMPLATE = `ℹ️ *Hướng dẫn sử dụng BotShop*
 
@@ -47,7 +82,7 @@ export const SettingsPage = () => {
 \`/wallet\` — Xem ví
 \`/help\` — Xem hướng dẫn`;
 
-  // Link Webhook được trích xuất tự động 100% từ biến môi trường của Backend hoặc Domain máy chủ
+  // Link Webhook được trích xuất tự động từ Backend hoặc Domain máy chủ
   const webhookUrl = webhookInfo?.sepayWebhookUrl || (
     typeof window !== 'undefined'
       ? (import.meta.env.VITE_API_BASE_URL
@@ -85,7 +120,7 @@ export const SettingsPage = () => {
         accountNumber: defaultConfig.accountNumber,
         accountHolder: defaultConfig.accountHolder,
         webhookProvider: defaultConfig.webhookProvider || 'SEPAY',
-        webhookApiKey: defaultConfig.webhookApiKey || '',
+        webhookApiKey: '',
         paymentTimeoutMinutes: defaultConfig.paymentTimeoutMinutes !== undefined ? defaultConfig.paymentTimeoutMinutes : 5,
         bankFeeType: defaultConfig.bankFeeType || 'FIXED',
         bankFeeAmount: defaultConfig.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
@@ -109,23 +144,71 @@ export const SettingsPage = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Kiểm tra xem có thay đổi các trường nhạy cảm không
+  const hasSensitiveChanges = () => {
+    if (!defaultConfig) return true; // Tạo mới luôn là sensitive
+
+    const bankNameChanged = formData.bankName?.trim() !== defaultConfig.bankName?.trim();
+    const accNumChanged = formData.accountNumber?.trim() !== defaultConfig.accountNumber?.trim();
+    const accHolderChanged = formData.accountHolder?.trim() !== defaultConfig.accountHolder?.trim();
+    const providerChanged = formData.webhookProvider !== defaultConfig.webhookProvider;
+    const apiKeyChanged = !!formData.webhookApiKey && formData.webhookApiKey.trim() !== '';
+
+    return bankNameChanged || accNumChanged || accHolderChanged || providerChanged || apiKeyChanged;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const payload: PaymentConfigSaveRequest = {
+      bankName: formData.bankName?.trim(),
+      accountNumber: formData.accountNumber?.trim(),
+      accountHolder: formData.accountHolder?.trim().toUpperCase(),
+      webhookProvider: formData.webhookProvider,
+      paymentTimeoutMinutes: Number(formData.paymentTimeoutMinutes) || 5,
+      bankFeeType: formData.bankFeeType as 'FIXED' | 'PERCENT',
+      bankFeeAmount: Number(formData.bankFeeAmount) || 0,
+      guideContent: formData.guideContent,
+    };
+
+    if (formData.webhookApiKey && formData.webhookApiKey.trim() !== '') {
+      payload.webhookApiKey = formData.webhookApiKey.trim();
+    }
+
+    if (hasSensitiveChanges()) {
+      setPendingPayload(payload);
+      setAdminPassword('');
+      setIsPasswordModalOpen(true);
+    } else {
+      executeSave(payload);
+    }
+  };
+
+  const executeSave = async (payload: PaymentConfigSaveRequest) => {
     try {
-      const payload: any = {
-        ...formData,
-        paymentTimeoutMinutes: Number(formData.paymentTimeoutMinutes) || 5,
-        bankFeeAmount: Number(formData.bankFeeAmount) || 0,
-        id: defaultConfig?.id,
-        isDefault: true
-      };
-      if (!formData.webhookApiKey || formData.webhookApiKey.trim() === '') {
-        delete payload.webhookApiKey;
+      if (defaultConfig?.id) {
+        await updateConfig({ id: defaultConfig.id, data: payload }).unwrap();
+      } else {
+        await createConfig(payload).unwrap();
       }
-      await createConfig(payload).unwrap();
       toast.success('Lưu cấu hình thanh toán thành công!');
-    } catch (err) {
-      toast.error('Lỗi khi lưu cấu hình');
+      setIsPasswordModalOpen(false);
+      setAdminPassword('');
+      setPendingPayload(null);
+    } catch (err: any) {
+      const errorMsg = err?.data?.message || err?.error || 'Lỗi khi lưu cấu hình';
+      toast.error(errorMsg);
+    }
+  };
+
+  const handleConfirmPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminPassword || adminPassword.trim() === '') {
+      toast.error('Vui lòng nhập mật khẩu xác thực');
+      return;
+    }
+    if (pendingPayload) {
+      executeSave({ ...pendingPayload, adminPassword: adminPassword.trim() });
     }
   };
 
@@ -546,7 +629,7 @@ export const SettingsPage = () => {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="btn btn-primary w-full bg-blue-600 hover:bg-blue-500 py-3 flex items-center justify-center space-x-2"
+                  className="btn btn-primary w-full bg-blue-600 hover:bg-blue-500 py-3 flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/20"
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
                   <span>{isSaving ? 'Đang lưu...' : 'Lưu Cấu Hình'}</span>
@@ -579,6 +662,92 @@ export const SettingsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL BẢO MẬT: XÁC THỰC MẬT KHẨU ADMIN (SUDO MODE) */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Xác nhận Bảo Mật</h3>
+                  <p className="text-xs text-slate-400">Yêu cầu quyền Quản trị viên</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPasswordModalOpen(false);
+                  setAdminPassword('');
+                  setPendingPayload(null);
+                }}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="bg-amber-950/40 border border-amber-800/40 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-200 leading-relaxed">
+              <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                Bạn đang thay đổi <strong>Số tài khoản ngân hàng</strong> hoặc <strong>Khóa Webhook</strong> nhận tiền. Vui lòng nhập mật khẩu tài khoản Admin để xác nhận.
+              </div>
+            </div>
+
+            <form onSubmit={handleConfirmPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Lock size={14} className="text-blue-400" />
+                  Mật khẩu tài khoản Admin hiện tại
+                </label>
+                <div className="relative">
+                  <input
+                    type={showAdminPassword ? 'text' : 'password'}
+                    autoFocus
+                    required
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu Admin của bạn"
+                    className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors"
+                  >
+                    {showAdminPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPasswordModalOpen(false);
+                    setAdminPassword('');
+                    setPendingPayload(null);
+                  }}
+                  className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-sm font-medium transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving || !adminPassword.trim()}
+                  className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-sm font-medium flex items-center justify-center gap-2 shadow-lg shadow-blue-600/30 transition-colors"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
+                  <span>{isSaving ? 'Đang lưu...' : 'Xác Nhận & Lưu'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

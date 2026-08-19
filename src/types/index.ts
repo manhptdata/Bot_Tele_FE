@@ -23,6 +23,7 @@ export interface AuthState {
 
 export interface Product {
   id: number;
+  categoryId: number;
   name: string;
   slug: string;
   description: string;
@@ -39,7 +40,7 @@ export interface Product {
 /** Request shape is intentionally separate because the form preserves price as
  * a decimal string until it reaches the backend BigDecimal parser. */
 export interface ProductUpsertPayload {
-  categoryId: number;
+  categoryId: number | null;
   name: string;
   slug: string;
   description?: string;
@@ -140,12 +141,41 @@ export interface PaymentConfig {
   bankName: string;
   accountNumber: string;
   accountHolder: string;
-  webhookProvider?: string;
-  webhookApiKey?: string;
-  isWebhookApiKeyConfigured?: boolean;
+  bankCode?: string;
+  isActive: boolean;
   isDefault: boolean;
+  webhookProvider?: string;
+  isWebhookApiKeyConfigured?: boolean;
+  isWebhookSecretConfigured?: boolean;
+  providerBankAccId?: string;
   paymentTimeoutMinutes?: number;
   bankFeeType?: 'FIXED' | 'PERCENT';
   bankFeeAmount?: number;
   guideContent?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
+
+export interface PaymentConfigSaveRequest {
+  bankName?: string;
+  accountNumber?: string;
+  accountHolder?: string;
+  bankCode?: string;
+  isActive?: boolean;
+  webhookProvider?: string;
+  providerBankAccId?: string;
+  paymentTimeoutMinutes?: number;
+  bankFeeType?: 'FIXED' | 'PERCENT';
+  bankFeeAmount?: number;
+  guideContent?: string;
+  webhookApiKey?: string;
+  webhookSecret?: string;
+  clearWebhookApiKey?: boolean;
+  clearWebhookSecret?: boolean;
+  adminPassword?: string;
+}
+
+export interface StepUpPasswordRequest {
+  adminPassword: string;
+}
+

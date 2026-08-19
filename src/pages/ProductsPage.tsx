@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetProductsQuery, useDeleteProductMutation, useCreateProductMutation, useUpdateProductMutation } from '../api/productApi';
 import { useGetCategoriesQuery } from '../api/categoryApi';
-import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle, Bot } from 'lucide-react';
+import { ProductUpsertPayload } from '../types';
+import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle, Bot, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
+import { generateShortSlug } from '../utils/slugUtils';
 
 export const ProductsPage = () => {
   const [page, setPage] = useState(0);
@@ -28,6 +30,7 @@ export const ProductsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewProductInfo, setViewProductInfo] = useState<any | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [attributeList, setAttributeList] = useState<{key: string, value: string}[]>([]);
   const [formatFieldsList, setFormatFieldsList] = useState<string[]>(['Tài khoản', 'Mật khẩu']);
   const [formData, setFormData] = useState<{
@@ -59,11 +62,12 @@ export const ProductsPage = () => {
   const handleOpenModal = (product?: any) => {
     if (product) {
       setEditingId(product.id);
+      setIsSlugManuallyEdited(true);
       setFormData({
         name: product.name,
         slug: product.slug,
         price: String(product.price ?? 0),
-        categoryId: product.categoryId?.toString() || (categories.length > 0 ? categories[0].id.toString() : ''),
+        categoryId: product.categoryId?.toString() ?? '',
         description: product.description || '',
         imageUrl: product.imageUrl || '',
         deliveryMode: product.deliveryMode,
@@ -82,11 +86,12 @@ export const ProductsPage = () => {
       setAttributeList(attrs);
     } else {
       setEditingId(null);
+      setIsSlugManuallyEdited(false);
       setFormData({ 
         name: '', 
         slug: '', 
         price: '',
-        categoryId: categories.length > 0 ? categories[0].id.toString() : '',
+        categoryId: '',
         description: '', 
         imageUrl: '',
         deliveryMode: 'AUTO', 
@@ -103,10 +108,6 @@ export const ProductsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.categoryId) {
-      toast.error('Vui lòng chọn danh mục!');
-      return;
-    }
     const numericPrice = Number(formData.price);
     if (!Number.isFinite(numericPrice) || numericPrice <= 0) {
       toast.error('Giá sản phẩm phải lớn hơn 0!');
@@ -125,11 +126,11 @@ export const ProductsPage = () => {
         }
         return acc;
       }, {} as Record<string, string>);
-      const payload = { 
+      const payload: ProductUpsertPayload = { 
         ...formData, 
         price: formData.price.trim(),
         imageUrl: formData.imageUrl.trim() || undefined,
-        categoryId: Number(formData.categoryId), 
+        categoryId: formData.categoryId ? Number(formData.categoryId) : null, 
         stockCount: formData.deliveryMode === 'MANUAL' ? numericStock : undefined,
         attributes: attributesRecord,
         accountFormat: formatFieldsList.filter(f => f.trim() !== '').join('|') || 'Tài khoản'
@@ -366,18 +367,69 @@ export const ProductsPage = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Tên sản phẩm (*)</label>
-                <input required type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Ví dụ: Netflix Premium 1 Tháng" />
+                <input 
+                  required 
+                  type="text" 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  value={formData.name} 
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    if (!editingId && !isSlugManuallyEdited) {
+                      setFormData(prev => ({ ...prev, name: newName, slug: generateShortSlug(newName) }));
+                    } else {
+                      setFormData(prev => ({ ...prev, name: newName }));
+                    }
+                  }} 
+                  placeholder="Ví dụ: Netflix Premium 1 Tháng" 
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Mã (Slug) (*)</label>
-                  <input required type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.slug} onChange={(e) => setFormData({...formData, slug: e.target.value})} placeholder="netflix-1m" />
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Mã (Slug) (*)</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const generated = generateShortSlug(formData.name || 'sp');
+                        setFormData(prev => ({ ...prev, slug: generated }));
+                      }}
+                      className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition-colors"
+                      title="Sinh mã ngẫu nhiên mới"
+                    >
+                      <Sparkles size={11} />
+                      <span>Đổi mã</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input 
+                      required 
+                      type="text" 
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3.5 pr-8 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                      value={formData.slug} 
+                      onChange={(e) => {
+                        setIsSlugManuallyEdited(true);
+                        setFormData({ ...formData, slug: e.target.value });
+                      }} 
+                      placeholder="netflix-482" 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const generated = generateShortSlug(formData.name || 'sp');
+                        setFormData(prev => ({ ...prev, slug: generated }));
+                      }}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-400 transition-colors p-1"
+                      title="Đổi mã ngẫu nhiên khác"
+                    >
+                      <Sparkles size={14} />
+                    </button>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Danh mục (*)</label>
-                  <select required className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.categoryId} onChange={(e) => setFormData({...formData, categoryId: e.target.value})}>
-                    <option value="">-- Chọn danh mục --</option>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Danh mục</label>
+                  <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.categoryId} onChange={(e) => setFormData({...formData, categoryId: e.target.value})}>
+                    <option value="">-- Tự động: Sản phẩm khác --</option>
                     {categories.map((c: any) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
                     ))}

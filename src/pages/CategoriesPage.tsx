@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useGetCategoriesQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation } from '../api/categoryApi';
+import { useGetCategoriesQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation, useLazyGetProductCountQuery } from '../api/categoryApi';
 import { Plus, Edit2, Trash2, FolderTree, X, Search, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
@@ -21,6 +21,7 @@ export const CategoriesPage = () => {
   const [createCategory, { isLoading: isCreating }] = useCreateCategoryMutation();
   const [updateCategory] = useUpdateCategoryMutation();
   const [deleteCategory] = useDeleteCategoryMutation();
+  const [getProductCount] = useLazyGetProductCountQuery();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -75,13 +76,18 @@ export const CategoriesPage = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa danh mục này? Các sản phẩm thuộc danh mục có thể bị ảnh hưởng!')) {
-      try {
-        await deleteCategory(id).unwrap();
-        toast.success('Đã xóa danh mục');
-      } catch (err) {
-        toast.error('Lỗi khi xóa danh mục. Có thể danh mục này đang chứa sản phẩm.');
+    try {
+      const count = await getProductCount(id).unwrap();
+      let confirmMsg = 'Bạn có chắc chắn muốn xóa danh mục này?';
+      if (count > 0) {
+        confirmMsg = `⚠️ Danh mục này đang chứa ${count} sản phẩm.\n\nToàn bộ sản phẩm sẽ được tự động chuyển sang danh mục "Sản phẩm khác".\n\nBạn có chắc chắn muốn xóa?`;
       }
+      if (!window.confirm(confirmMsg)) return;
+
+      await deleteCategory(id).unwrap();
+      toast.success('Đã xóa danh mục');
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Lỗi khi xóa danh mục');
     }
   };
 
@@ -151,7 +157,14 @@ export const CategoriesPage = () => {
                       #{cat.sortOrder ?? 0}
                     </td>
                     <td className="p-4">
-                      <div className="font-medium text-white">{cat.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-white">{cat.name}</span>
+                        {cat.slug === 'other' && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            Mặc định
+                          </span>
+                        )}
+                      </div>
                       <div className="text-xs text-slate-400 font-mono">/{cat.slug}</div>
                     </td>
                     <td className="p-4">
@@ -179,13 +192,15 @@ export const CategoriesPage = () => {
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button 
-                        onClick={() => handleDelete(cat.id)}
-                        className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
-                        title="Xóa danh mục"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {cat.slug !== 'other' && (
+                        <button 
+                          onClick={() => handleDelete(cat.id)}
+                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                          title="Xóa danh mục"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -228,7 +243,16 @@ export const CategoriesPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Mã (Slug) (*)</label>
-                  <input required type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.slug} onChange={(e) => setFormData({...formData, slug: e.target.value})} placeholder="netflix-premium" />
+                  <input 
+                    required 
+                    type="text" 
+                    disabled={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other'}
+                    title={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other' ? 'Không thể thay đổi mã của danh mục mặc định' : ''}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    value={formData.slug} 
+                    onChange={(e) => setFormData({...formData, slug: e.target.value})} 
+                    placeholder="netflix-premium" 
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Thứ tự ưu tiên</label>
@@ -247,8 +271,17 @@ export const CategoriesPage = () => {
               </div>
 
               <div className="flex items-center space-x-2 pt-1">
-                <input type="checkbox" id="isActive" checked={formData.isActive} onChange={(e) => setFormData({...formData, isActive: e.target.checked})} className="rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500 h-4 w-4" />
-                <label htmlFor="isActive" className="text-sm text-gray-300 font-medium">Kích hoạt hiển thị trên Bot</label>
+                <input 
+                  type="checkbox" 
+                  id="isActive" 
+                  checked={formData.isActive} 
+                  disabled={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other'}
+                  onChange={(e) => setFormData({...formData, isActive: e.target.checked})} 
+                  className="rounded border-slate-700 bg-slate-800 text-blue-500 focus:ring-blue-500 h-4 w-4 disabled:opacity-50 disabled:cursor-not-allowed" 
+                />
+                <label htmlFor="isActive" className="text-sm text-gray-300 font-medium">
+                  Kích hoạt hiển thị trên Bot {editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other' && '(Bắt buộc bật cho danh mục mặc định)'}
+                </label>
               </div>
 
               <div className="flex gap-3 justify-end pt-3 border-t border-slate-700/50">

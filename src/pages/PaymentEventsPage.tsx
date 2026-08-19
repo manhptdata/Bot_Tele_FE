@@ -112,7 +112,7 @@ export const PaymentEventsPage = () => {
       <div>
         <h1 className="text-2xl font-bold text-white flex items-center gap-2.5">
           <Receipt className="text-blue-500" />
-          Giao Dịch Webhook & Xử Lý Treo Tiền
+          Giao Dịch Chuyển Khoản & Xử Lý Treo Tiền
         </h1>
         <p className="text-gray-400 mt-1">
           Theo dõi toàn bộ biến động tiền từ SePay/Ngân hàng và xử lý 1-chạm khi khách nạp sai cú pháp hoặc quên mã đơn.
@@ -125,43 +125,39 @@ export const PaymentEventsPage = () => {
         <div className="flex flex-wrap items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800 w-full md:w-auto">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              statusFilter === 'ALL'
+            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors ${statusFilter === 'ALL'
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             Tất cả ({events.length})
           </button>
           <button
             onClick={() => setStatusFilter('UNRESOLVED')}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              statusFilter === 'UNRESOLVED'
+            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${statusFilter === 'UNRESOLVED'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             <AlertCircle size={13} />
             Chờ xử lý ({events.filter((e) => e.status === 'UNRESOLVED').length})
           </button>
           <button
             onClick={() => setStatusFilter('MANUALLY_RESOLVED')}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              statusFilter === 'MANUALLY_RESOLVED'
+            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${statusFilter === 'MANUALLY_RESOLVED'
                 ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             <CheckCircle size={13} />
             Đã xử lý thủ công ({events.filter((e) => e.status === 'MANUALLY_RESOLVED').length})
           </button>
           <button
             onClick={() => setStatusFilter('AUTO_RESOLVED')}
-            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              statusFilter === 'AUTO_RESOLVED'
+            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${statusFilter === 'AUTO_RESOLVED'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-white'
-            }`}
+              }`}
           >
             <CheckCircle size={13} />
             Tự động thành công
@@ -243,20 +239,19 @@ export const PaymentEventsPage = () => {
                     </td>
                     <td className="p-4">
                       <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 ${
-                          ev.status === 'UNRESOLVED'
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 ${ev.status === 'UNRESOLVED'
                             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
                             : ev.status === 'MANUALLY_RESOLVED'
-                            ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                            : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        }`}
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}
                       >
                         {ev.status === 'UNRESOLVED' ? <AlertCircle size={12} /> : <CheckCircle size={12} />}
                         {ev.status === 'UNRESOLVED'
                           ? 'Treo / Chờ xử lý'
                           : ev.status === 'MANUALLY_RESOLVED'
-                          ? 'Đã duyệt tay'
-                          : 'Tự động'}
+                            ? 'Đã duyệt tay'
+                            : 'Tự động'}
                       </span>
                     </td>
                     <td className="p-4 text-xs text-slate-400 max-w-xs">

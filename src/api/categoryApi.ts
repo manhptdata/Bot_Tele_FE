@@ -44,6 +44,9 @@ export const categoryApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Category'],
     }),
+    getProductCount: builder.query<number, number>({
+      query: (id) => `/categories/${id}/product-count`,
+    }),
   }),
 });
 
@@ -52,4 +55,6 @@ export const {
   useCreateCategoryMutation,
   useUpdateCategoryMutation,
   useDeleteCategoryMutation,
+  useGetProductCountQuery,
+  useLazyGetProductCountQuery,
 } = categoryApi;
