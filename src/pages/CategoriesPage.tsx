@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useGetCategoriesQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation, useLazyGetProductCountQuery } from '../api/categoryApi';
-import { Plus, Edit2, Trash2, FolderTree, X, Search, Image as ImageIcon } from 'lucide-react';
+import { Plus, Edit2, Trash2, FolderTree, X, Search, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
+import { generateShortSlug } from '../utils/slugUtils';
 
 export const CategoriesPage = () => {
   const [page, setPage] = useState(0);
@@ -25,6 +26,7 @@ export const CategoriesPage = () => {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const [formData, setFormData] = useState<{
     name: string;
     slug: string;
@@ -44,6 +46,7 @@ export const CategoriesPage = () => {
   const handleOpenModal = (category?: any) => {
     if (category) {
       setEditingId(category.id);
+      setIsSlugManuallyEdited(true);
       setFormData({
         name: category.name,
         slug: category.slug,
@@ -54,6 +57,7 @@ export const CategoriesPage = () => {
       });
     } else {
       setEditingId(null);
+      setIsSlugManuallyEdited(false);
       setFormData({ name: '', slug: '', description: '', imageUrl: '', sortOrder: 0, isActive: true });
     }
     setIsModalOpen(true);
@@ -237,22 +241,54 @@ export const CategoriesPage = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Tên danh mục (*)</label>
-                <input required type="text" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} placeholder="Ví dụ: Tài khoản Netflix, Game..." />
+                <input 
+                  required 
+                  type="text" 
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                  value={formData.name} 
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    if (!editingId && !isSlugManuallyEdited) {
+                      setFormData(prev => ({ ...prev, name: newName, slug: generateShortSlug(newName) }));
+                    } else {
+                      setFormData(prev => ({ ...prev, name: newName }));
+                    }
+                  }} 
+                  placeholder="Ví dụ: Tài khoản Netflix, Game..." 
+                />
               </div>
               
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Mã (Slug) (*)</label>
-                  <input 
-                    required 
-                    type="text" 
-                    disabled={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other'}
-                    title={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other' ? 'Không thể thay đổi mã của danh mục mặc định' : ''}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed" 
-                    value={formData.slug} 
-                    onChange={(e) => setFormData({...formData, slug: e.target.value})} 
-                    placeholder="netflix-premium" 
-                  />
+                  <div className="relative">
+                    <input 
+                      required 
+                      type="text" 
+                      disabled={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other'}
+                      title={editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other' ? 'Không thể thay đổi mã của danh mục mặc định' : ''}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3.5 pr-8 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed" 
+                      value={formData.slug} 
+                      onChange={(e) => {
+                        setIsSlugManuallyEdited(true);
+                        setFormData({...formData, slug: e.target.value});
+                      }} 
+                      placeholder="netflix-482" 
+                    />
+                    {!(editingId !== null && categories.find(c => c.id === editingId)?.slug === 'other') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newSlug = generateShortSlug(formData.name || 'danhmuc');
+                          setFormData(prev => ({ ...prev, slug: newSlug }));
+                        }}
+                        title="Tạo lại mã ngẫu nhiên"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400 p-1 rounded transition-colors"
+                      >
+                        <RefreshCw size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Thứ tự ưu tiên</label>

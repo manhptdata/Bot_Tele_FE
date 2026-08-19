@@ -9,7 +9,8 @@ import {
   useGetNotificationsQuery, 
   useMarkAsReadMutation, 
   useMarkAllAsReadMutation,
-  notificationApi
+  notificationApi,
+  type AppNotification
 } from '../../api/notificationApi';
 import { useGetMeQuery } from '../../api/userApi';
 import { baseApi } from '../../api/baseApi';
@@ -22,7 +23,7 @@ export const Header = () => {
   const currentUser = meData || user;
   
   const [showDropdown, setShowDropdown] = useState(false);
-  const [realtimeAlert, setRealtimeAlert] = useState<any | null>(null);
+  const [realtimeAlert, setRealtimeAlert] = useState<AppNotification | null>(null);
   const alertTimerRef = useRef<any>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -97,25 +98,42 @@ export const Header = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleNotificationClick = async (id: number, type: string) => {
-    await markAsRead(id);
-    setShowDropdown(false);
-    setRealtimeAlert(null);
-    if (type === 'ORDER') {
-      navigate('/orders');
-    } else if (type === 'DEPOSIT') {
-      navigate('/customers');
+  const navigateByNotification = (type: string, referenceId?: string | null) => {
+    switch (type) {
+      case 'ORDER':
+        navigate('/orders');
+        break;
+      case 'DEPOSIT':
+        navigate('/customers');
+        break;
+      case 'PRODUCT':
+        navigate('/products');
+        break;
+      case 'INVENTORY':
+        navigate(referenceId ? `/accounts?productId=${referenceId}` : '/accounts');
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleNotificationClick = async (notif: AppNotification) => {
+    try {
+      await markAsRead(notif.id).unwrap();
+    } catch (err) {
+      console.error('Lỗi khi đánh dấu đã đọc thông báo:', err);
+    } finally {
+      setShowDropdown(false);
+      setRealtimeAlert(null);
+      navigateByNotification(notif.type, notif.referenceId);
     }
   };
 
   const handleRealtimeAlertClick = () => {
-    const type = realtimeAlert?.type;
+    if (!realtimeAlert) return;
+    const notif = realtimeAlert;
     setRealtimeAlert(null);
-    if (type === 'ORDER') {
-      navigate('/orders');
-    } else if (type === 'DEPOSIT') {
-      navigate('/customers');
-    }
+    navigateByNotification(notif.type, notif.referenceId);
   };
 
   const handleMarkAllRead = async (e: React.MouseEvent) => {
@@ -226,7 +244,7 @@ export const Header = () => {
                   notifications.map(notif => (
                     <div 
                       key={notif.id}
-                      onClick={() => handleNotificationClick(notif.id, notif.type)}
+                      onClick={() => handleNotificationClick(notif)}
                       className={`p-3.5 cursor-pointer hover:bg-slate-800/80 transition-colors ${!notif.read ? 'bg-blue-500/10' : ''}`}
                     >
                       <div className="flex justify-between items-start mb-1">

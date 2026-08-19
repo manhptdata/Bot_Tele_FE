@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useGetAccountsQuery, useDeleteAccountMutation, useImportExcelMutation, useAddBulkAccountsMutation } from '../api/accountApi';
 import { useGetProductsQuery } from '../api/productApi';
 import { Users, Upload, Trash2, Search, Filter, Eye, X, ShieldCheck } from 'lucide-react';
@@ -7,11 +8,22 @@ import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
 
 export const AccountsPage = () => {
+  const [searchParams] = useSearchParams();
+  const productIdFromUrl = searchParams.get('productId');
+
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterProductId, setFilterProductId] = useState<string>('');
+  const [filterProductId, setFilterProductId] = useState<string>(productIdFromUrl ?? '');
   const [filterStatus, setFilterStatus] = useState<string>('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  useEffect(() => {
+    const pid = searchParams.get('productId');
+    if (pid !== null) {
+      setFilterProductId(pid);
+      setPage(0);
+    }
+  }, [searchParams]);
 
   const { data: pageResponse, isLoading: accountsLoading } = useGetAccountsQuery({
     page,

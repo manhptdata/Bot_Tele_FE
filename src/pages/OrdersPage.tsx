@@ -25,6 +25,8 @@ import {
   Send,
   MessageSquare,
   Truck,
+  RefreshCw,
+  type LucideIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
@@ -32,6 +34,42 @@ import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
 import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
 import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
+
+interface OrderStatusConfig {
+  label: string;
+  style: string;
+  icon: LucideIcon;
+}
+
+const ORDER_STATUS_CONFIG: Record<string, OrderStatusConfig> = {
+  COMPLETED: { label: 'Đã hoàn thành', style: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: CheckCircle },
+  PENDING: { label: 'Chờ thanh toán', style: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: Clock },
+  PAID: { label: 'Đã thanh toán', style: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30', icon: CheckCircle },
+  DELIVERY_PENDING: { label: 'Đang xử lý giao', style: 'bg-blue-500/20 text-blue-300 border-blue-500/30', icon: Clock },
+  PAID_MANUAL_PENDING: { label: 'Chờ giao tay', style: 'bg-purple-500/20 text-purple-300 border-purple-500/30', icon: Clock },
+  PAID_REVIEW_REQUIRED: { label: 'Cần kiểm tra TT', style: 'bg-orange-500/20 text-orange-400 border-orange-500/30', icon: AlertTriangle },
+  DELIVERY_FAILED: { label: 'Giao thất bại', style: 'bg-rose-500/20 text-rose-400 border-rose-500/30', icon: AlertTriangle },
+  DELIVERY_REVIEW_REQUIRED: { label: 'Cần kiểm tra giao hàng', style: 'bg-orange-500/20 text-orange-400 border-orange-500/30', icon: AlertTriangle },
+  CANCELLED_UNDERPAID: { label: 'Thiếu tiền (Đã hoàn ví)', style: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: AlertTriangle },
+  CANCELLED: { label: 'Đã hủy', style: 'bg-slate-500/20 text-slate-400 border-slate-500/30', icon: XCircle },
+  REFUNDED: { label: 'Đã hoàn tiền', style: 'bg-pink-500/20 text-pink-400 border-pink-500/30', icon: RefreshCw },
+  EXPIRED: { label: 'Hết hạn', style: 'bg-rose-950/40 text-rose-400 border-rose-800/40', icon: Clock },
+};
+
+const renderOrderStatusBadge = (status: string) => {
+  const cfg = ORDER_STATUS_CONFIG[status] || {
+    label: status,
+    style: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
+    icon: Clock,
+  };
+  const IconComponent = cfg.icon;
+  return (
+    <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold inline-flex items-center gap-1 border ${cfg.style}`}>
+      <IconComponent size={11} />
+      <span>{cfg.label}</span>
+    </span>
+  );
+};
 
 export const OrdersPage = () => {
   const [page, setPage] = useState(0);
@@ -346,17 +384,7 @@ ${payload}
                       <span>{order.paymentMethod === 'BANK_TRANSFER' ? '🏦 Ngân hàng' : '💳 Ví Bot'}</span>
                     </td>
                     <td className="p-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold inline-flex items-center gap-1 ${
-                        order.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                        order.status === 'PAID_MANUAL_PENDING' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                        order.status === 'PENDING' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                        'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      }`}>
-                        {order.status === 'COMPLETED' && <CheckCircle size={11} />}
-                        {order.status === 'PENDING' && <Clock size={11} />}
-                        {order.status === 'PAID_MANUAL_PENDING' && <Clock size={11} />}
-                        <span>{order.status === 'PAID_MANUAL_PENDING' ? 'Chờ giao tay' : order.status}</span>
-                      </span>
+                      {renderOrderStatusBadge(order.status)}
                     </td>
                     <td className="p-4 text-xs text-slate-400">
                       {new Date(order.createdAt).toLocaleString('vi-VN')}
@@ -512,6 +540,19 @@ ${payload}
                 </div>
               ) : orderDetail ? (
                 <>
+                  {/* ⚠️ CẢNH BÁO THANH TOÁN THIẾU & TỰ ĐỘNG HOÀN VÍ */}
+                  {orderDetail.status === 'CANCELLED_UNDERPAID' && (
+                    <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-4 shadow-lg shadow-amber-950/30">
+                      <div className="flex items-center gap-2 text-amber-400 font-bold text-sm mb-1.5">
+                        <AlertTriangle size={18} className="text-amber-400 flex-shrink-0" />
+                        <span>Đơn hàng đã hủy do thanh toán thiếu tiền</span>
+                      </div>
+                      <p className="text-xs text-amber-200/90 leading-relaxed">
+                        {orderDetail.adminNote || `Khách hàng thanh toán chưa đủ tổng tiền đơn hàng (${orderDetail.totalAmount?.toLocaleString()}đ). Hệ thống đã tự động hoàn toàn bộ số tiền khách vừa chuyển vào Số dư ví của khách trên Bot.`}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Thông tin Khách Hàng & Thanh Toán */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Khách hàng */}
@@ -575,14 +616,7 @@ ${payload}
                     <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-700/50 pb-2 text-slate-300 font-semibold text-xs uppercase tracking-wider">
                         <span className="flex items-center gap-1.5"><Wallet size={15} /> Thanh Toán</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                          orderDetail.status === 'COMPLETED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                          orderDetail.status === 'PAID_MANUAL_PENDING' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' :
-                          orderDetail.status === 'PENDING' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                          'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                        }`}>
-                          {orderDetail.status === 'PAID_MANUAL_PENDING' ? 'Chờ giao tay' : orderDetail.status}
-                        </span>
+                        {renderOrderStatusBadge(orderDetail.status)}
                       </div>
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between items-center">

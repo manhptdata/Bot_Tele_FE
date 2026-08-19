@@ -102,7 +102,7 @@ export interface OrderDetail {
   subtotalAmount?: number;
   feeAmount?: number;
   totalAmount: number;
-  status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
+  status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'DELIVERY_REVIEW_REQUIRED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';
   paymentMethod: 'WALLET' | 'BANK_TRANSFER' | 'FREE';
   deliverySource?: 'INVENTORY' | 'CUSTOM';
@@ -125,7 +125,7 @@ export interface OrderTable {
   subtotalAmount?: number;
   feeAmount?: number;
   totalAmount: number;
-  status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
+  status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'DELIVERY_REVIEW_REQUIRED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';
   paymentMethod: 'WALLET' | 'BANK_TRANSFER' | 'FREE';
   createdAt: string;

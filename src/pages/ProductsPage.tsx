@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useGetProductsQuery, useDeleteProductMutation, useCreateProductMutation, useUpdateProductMutation } from '../api/productApi';
-import { useGetCategoriesQuery } from '../api/categoryApi';
+import { useGetCategoriesQuery, useCreateCategoryMutation } from '../api/categoryApi';
 import { ProductUpsertPayload } from '../types';
-import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle, Bot, Sparkles } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle, Bot, Sparkles, FolderTree, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
@@ -14,24 +14,31 @@ export const ProductsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  const { data: pageResponse, isLoading } = useGetProductsQuery({ 
-    page, 
+  const { data: pageResponse, isLoading } = useGetProductsQuery({
+    page,
     size: 10,
     keyword: debouncedSearchTerm
   });
-  
+
   const products = pageResponse?.content || [];
   const { data: categoriesPage } = useGetCategoriesQuery({ size: 100 });
   const categories = categoriesPage?.content || [];
   const [deleteProduct] = useDeleteProductMutation();
   const [createProduct, { isLoading: isCreating }] = useCreateProductMutation();
   const [updateProduct] = useUpdateProductMutation();
-  
+  const [createCategoryMutation, { isLoading: isCreatingCategory }] = useCreateCategoryMutation();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewProductInfo, setViewProductInfo] = useState<any | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
-  const [attributeList, setAttributeList] = useState<{key: string, value: string}[]>([]);
+
+  const [isQuickCategoryModalOpen, setIsQuickCategoryModalOpen] = useState(false);
+  const [quickCategoryName, setQuickCategoryName] = useState('');
+  const [quickCategorySlug, setQuickCategorySlug] = useState('');
+  const [isQuickSlugManuallyEdited, setIsQuickSlugManuallyEdited] = useState(false);
+
+  const [attributeList, setAttributeList] = useState<{ key: string, value: string }[]>([]);
   const [formatFieldsList, setFormatFieldsList] = useState<string[]>(['Tài khoản', 'Mật khẩu']);
   const [formData, setFormData] = useState<{
     name: string;
@@ -76,29 +83,29 @@ export const ProductsPage = () => {
         displayType: product.displayType || 'MULTI_LINE',
         isActive: product.isActive
       });
-      
+
       const formatString = product.accountFormat || 'Tài khoản|Mật khẩu';
       setFormatFieldsList(formatString.split('|').filter((f: string) => f.trim() !== ''));
-      
-      const attrs = product.attributes 
-        ? Object.entries(product.attributes).map(([k, v]) => ({ key: k, value: String(v) })) 
+
+      const attrs = product.attributes
+        ? Object.entries(product.attributes).map(([k, v]) => ({ key: k, value: String(v) }))
         : [];
       setAttributeList(attrs);
     } else {
       setEditingId(null);
       setIsSlugManuallyEdited(false);
-      setFormData({ 
-        name: '', 
-        slug: '', 
+      setFormData({
+        name: '',
+        slug: '',
         price: '',
         categoryId: '',
-        description: '', 
+        description: '',
         imageUrl: '',
-        deliveryMode: 'AUTO', 
+        deliveryMode: 'AUTO',
         stockCount: '0',
         accountFormat: 'Tài khoản|Mật khẩu',
         displayType: 'MULTI_LINE',
-        isActive: true 
+        isActive: true
       });
       setFormatFieldsList(['Tài khoản', 'Mật khẩu']);
       setAttributeList([]);
@@ -115,22 +122,22 @@ export const ProductsPage = () => {
     }
     const numericStock = Number(formData.stockCount);
     if (formData.deliveryMode === 'MANUAL' &&
-        (!Number.isInteger(numericStock) || numericStock < 0)) {
+      (!Number.isInteger(numericStock) || numericStock < 0)) {
       toast.error('Tồn kho thủ công phải là số nguyên từ 0 trở lên!');
       return;
     }
     try {
       const attributesRecord = attributeList.reduce((acc, curr) => {
         if (curr.key.trim() && curr.value.trim()) {
-            acc[curr.key.trim()] = curr.value.trim();
+          acc[curr.key.trim()] = curr.value.trim();
         }
         return acc;
       }, {} as Record<string, string>);
-      const payload: ProductUpsertPayload = { 
-        ...formData, 
+      const payload: ProductUpsertPayload = {
+        ...formData,
         price: formData.price.trim(),
         imageUrl: formData.imageUrl.trim() || undefined,
-        categoryId: formData.categoryId ? Number(formData.categoryId) : null, 
+        categoryId: formData.categoryId ? Number(formData.categoryId) : null,
         stockCount: formData.deliveryMode === 'MANUAL' ? numericStock : undefined,
         attributes: attributesRecord,
         accountFormat: formatFieldsList.filter(f => f.trim() !== '').join('|') || 'Tài khoản'
@@ -188,6 +195,32 @@ export const ProductsPage = () => {
     setFormatFieldsList(updated);
   };
 
+  const handleQuickCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickCategoryName.trim()) {
+      toast.error('Vui lòng nhập tên danh mục!');
+      return;
+    }
+    try {
+      const slugToUse = quickCategorySlug.trim() || generateShortSlug(quickCategoryName);
+      const created = await createCategoryMutation({
+        name: quickCategoryName.trim(),
+        slug: slugToUse,
+        isActive: true,
+        sortOrder: 0,
+      }).unwrap();
+
+      setFormData(prev => ({ ...prev, categoryId: String(created.id) }));
+      toast.success(`Đã tạo danh mục "${created.name}" và chọn cho sản phẩm!`);
+      setIsQuickCategoryModalOpen(false);
+      setQuickCategoryName('');
+      setQuickCategorySlug('');
+      setIsQuickSlugManuallyEdited(false);
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Lỗi khi tạo nhanh danh mục');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
@@ -195,7 +228,7 @@ export const ProductsPage = () => {
           <h1 className="text-2xl font-bold text-white">Quản lý Sản phẩm</h1>
           <p className="text-gray-400 mt-1">Danh sách sản phẩm dịch vụ đang cung cấp</p>
         </div>
-        <button 
+        <button
           onClick={() => handleOpenModal()}
           className="btn btn-primary flex items-center space-x-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg"
         >
@@ -207,9 +240,9 @@ export const ProductsPage = () => {
       <div className="flex items-center space-x-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-          <input 
-            type="text" 
-            placeholder="Tìm kiếm sản phẩm..." 
+          <input
+            type="text"
+            placeholder="Tìm kiếm sản phẩm..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
@@ -310,21 +343,21 @@ export const ProductsPage = () => {
                       )}
                     </td>
                     <td className="p-4 text-right space-x-2">
-                      <button 
+                      <button
                         onClick={() => setViewProductInfo(product)}
                         className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-400/10 rounded transition-colors"
                         title="Xem chi tiết"
                       >
                         <Eye size={16} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleOpenModal(product)}
                         className="p-2 text-slate-400 hover:text-orange-400 hover:bg-orange-400/10 rounded transition-colors"
                         title="Sửa"
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDelete(product.id)}
                         className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
                         title="Xóa"
@@ -338,7 +371,7 @@ export const ProductsPage = () => {
             </tbody>
           </table>
         </div>
-        
+
         {pageResponse && (
           <Pagination
             currentPage={pageResponse.pageNumber}
@@ -363,15 +396,15 @@ export const ProductsPage = () => {
                 <X size={20} />
               </button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Tên sản phẩm (*)</label>
-                <input 
-                  required 
-                  type="text" 
-                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                  value={formData.name} 
+                <input
+                  required
+                  type="text"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.name}
                   onChange={(e) => {
                     const newName = e.target.value;
                     if (!editingId && !isSlugManuallyEdited) {
@@ -379,8 +412,8 @@ export const ProductsPage = () => {
                     } else {
                       setFormData(prev => ({ ...prev, name: newName }));
                     }
-                  }} 
-                  placeholder="Ví dụ: Netflix Premium 1 Tháng" 
+                  }}
+                  placeholder="Ví dụ: Netflix Premium 1 Tháng"
                 />
               </div>
 
@@ -402,16 +435,16 @@ export const ProductsPage = () => {
                     </button>
                   </div>
                   <div className="relative">
-                    <input 
-                      required 
-                      type="text" 
-                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3.5 pr-8 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                      value={formData.slug} 
+                    <input
+                      required
+                      type="text"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3.5 pr-8 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={formData.slug}
                       onChange={(e) => {
                         setIsSlugManuallyEdited(true);
                         setFormData({ ...formData, slug: e.target.value });
-                      }} 
-                      placeholder="netflix-482" 
+                      }}
+                      placeholder="netflix-482"
                     />
                     <button
                       type="button"
@@ -427,8 +460,24 @@ export const ProductsPage = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Danh mục</label>
-                  <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.categoryId} onChange={(e) => setFormData({...formData, categoryId: e.target.value})}>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Danh mục</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setQuickCategoryName('');
+                        setQuickCategorySlug('');
+                        setIsQuickSlugManuallyEdited(false);
+                        setIsQuickCategoryModalOpen(true);
+                      }}
+                      className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition-colors cursor-pointer"
+                      title="Tạo nhanh danh mục mới"
+                    >
+                      <Plus size={12} />
+                      <span> Thêm nhanh</span>
+                    </button>
+                  </div>
+                  <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.categoryId} onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}>
                     <option value="">-- Tự động: Sản phẩm khác --</option>
                     {categories.map((c: any) => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -440,13 +489,13 @@ export const ProductsPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Giá bán (VNĐ) (*)</label>
-                  <input required type="number" min="0.01" step="0.01" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.price} onChange={(e) => setFormData({...formData, price: e.target.value})} placeholder="65000" />
+                  <input required type="number" min="0.01" step="0.01" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} placeholder="65000" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Loại Giao Hàng</label>
-                  <select 
-                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                    value={formData.deliveryMode} 
+                  <select
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={formData.deliveryMode}
                     onChange={(e) => {
                       const newMode = e.target.value as 'AUTO' | 'MANUAL';
                       setFormData(prev => {
@@ -512,9 +561,9 @@ export const ProductsPage = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Link Ảnh Sản Phẩm (Tùy chọn)</label>
-                <input type="url" placeholder="https://example.com/product.png" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} />
+                <input type="url" placeholder="https://example.com/product.png" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.imageUrl} onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} />
               </div>
-              
+
               <div className="pt-2 border-t border-slate-700/50">
                 <div className="flex justify-between items-center mb-2">
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Định dạng Kho (Cấu trúc Tài khoản)</label>
@@ -523,7 +572,7 @@ export const ProductsPage = () => {
                     <span>Thêm trường</span>
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   {formatFieldsList.map((field, idx) => (
                     <div key={idx} className="flex space-x-2 items-center">
@@ -547,10 +596,10 @@ export const ProductsPage = () => {
                   ))}
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Kiểu trả cho khách</label>
-                <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.displayType} onChange={(e) => setFormData({...formData, displayType: e.target.value as 'MULTI_LINE' | 'RAW'})}>
+                <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.displayType} onChange={(e) => setFormData({ ...formData, displayType: e.target.value as 'MULTI_LINE' | 'RAW' })}>
                   <option value="MULTI_LINE">Chi tiết nhiều dòng (Tài khoản: abc...)</option>
                   <option value="RAW">Một dòng thô (abc|123...)</option>
                 </select>
@@ -559,11 +608,11 @@ export const ProductsPage = () => {
               <div>
                 <label className="flex items-center space-x-3 cursor-pointer mt-2 bg-slate-800/40 border border-slate-700/50 p-3 rounded-lg">
                   <div className="relative">
-                    <input 
-                      type="checkbox" 
-                      className="sr-only" 
+                    <input
+                      type="checkbox"
+                      className="sr-only"
                       checked={formData.isActive}
-                      onChange={(e) => setFormData({...formData, isActive: e.target.checked})}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
                     />
                     <div className={`block w-12 h-7 rounded-full transition-colors ${formData.isActive ? 'bg-green-500' : 'bg-slate-600'}`}></div>
                     <div className={`absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform ${formData.isActive ? 'transform translate-x-5' : ''}`}></div>
@@ -586,7 +635,7 @@ export const ProductsPage = () => {
                     <span>Thêm thuộc tính</span>
                   </button>
                 </div>
-                
+
                 {attributeList.length === 0 ? (
                   <div className="text-xs text-slate-500 italic">Chưa có thuộc tính nào. Có thể thêm Bảo hành, Định dạng...</div>
                 ) : (
@@ -637,7 +686,7 @@ export const ProductsPage = () => {
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
               {viewProductInfo.imageUrl && (
                 <div className="rounded-xl overflow-hidden border border-slate-700 max-h-56 bg-slate-950 flex items-center justify-center">
@@ -655,7 +704,7 @@ export const ProductsPage = () => {
                   <p><span className="text-slate-400">Giá:</span> <span className="text-green-400 font-bold">{viewProductInfo.price.toLocaleString()}đ</span></p>
                   <p><span className="text-slate-400">Danh mục ID:</span> <span className="text-white">{viewProductInfo.categoryId}</span></p>
                   <p>
-                    <span className="text-slate-400">Trạng thái:</span> 
+                    <span className="text-slate-400">Trạng thái:</span>
                     <span className={`ml-2 px-2 py-0.5 rounded text-xs font-semibold ${viewProductInfo.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                       {viewProductInfo.isActive ? 'Đang bán' : 'Đã ẩn'}
                     </span>
@@ -669,7 +718,7 @@ export const ProductsPage = () => {
                   <p><span className="text-slate-400">Tồn kho:</span> <span className="text-white font-bold">{viewProductInfo.stockCount}</span></p>
                   <p><span className="text-slate-400">Kiểu giao:</span> <span className="text-white">{viewProductInfo.deliveryMode === 'AUTO' ? 'Tự động' : 'Thủ công'}</span></p>
                   <p><span className="text-slate-400">Kiểu trả KH:</span> <span className="text-white">{viewProductInfo.displayType === 'MULTI_LINE' ? 'Chi tiết nhiều dòng' : 'Một dòng thô'}</span></p>
-                  
+
                   <div className="pt-2 mt-2 border-t border-slate-700/30">
                     <span className="text-slate-400 mb-1 block">Cấu trúc lưu kho:</span>
                     <div className="flex flex-wrap gap-1.5">
@@ -703,6 +752,92 @@ export const ProductsPage = () => {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tạo Danh Mục Nhanh Trực Tiếp */}
+      {isQuickCategoryModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[60] p-4 animate-in fade-in">
+          <div className="glass w-full max-w-sm p-5 rounded-2xl border border-slate-700 shadow-2xl">
+            <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2.5">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FolderTree className="text-blue-400" size={18} />
+                Thêm Nhanh Danh Mục
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsQuickCategoryModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-slate-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickCreateCategory} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Tên danh mục (*)</label>
+                <input
+                  autoFocus
+                  required
+                  type="text"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={quickCategoryName}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setQuickCategoryName(newName);
+                    if (!isQuickSlugManuallyEdited) {
+                      setQuickCategorySlug(generateShortSlug(newName));
+                    }
+                  }}
+                  placeholder="Ví dụ: Tài khoản AI, Âm nhạc..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Mã (Slug)</label>
+                <div className="relative">
+                  <input
+                    required
+                    type="text"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 pr-8 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={quickCategorySlug}
+                    onChange={(e) => {
+                      setIsQuickSlugManuallyEdited(true);
+                      setQuickCategorySlug(e.target.value);
+                    }}
+                    placeholder="ai-482"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuickCategorySlug(generateShortSlug(quickCategoryName || 'danhmuc'));
+                    }}
+                    title="Tạo lại mã ngẫu nhiên"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-400 p-1 rounded transition-colors"
+                  >
+                    <RefreshCw size={13} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-slate-700/50">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickCategoryModalOpen(false)}
+                  className="btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-3.5 py-1.5 text-xs font-medium"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingCategory}
+                  className="btn bg-blue-600 text-white hover:bg-blue-500 px-4 py-1.5 text-xs font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isCreatingCategory ? 'Đang tạo...' : 'Tạo & Chọn Luôn'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
