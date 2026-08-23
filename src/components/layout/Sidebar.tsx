@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   ClipboardList,
+  Ticket,
 } from 'lucide-react';
 
 interface SubNavItem {
@@ -48,6 +49,7 @@ const navItems: NavItem[] = [
     ],
   },
   { path: '/customers', label: 'Khách hàng', icon: Users },
+  { path: '/vouchers', label: 'Mã giảm giá', icon: Ticket, roles: ['ADMIN'] },
   { path: '/broadcast', label: 'Phát sóng', icon: Radio, roles: ['ADMIN'] },
   { path: '/settings', label: 'Cấu hình', icon: Settings, roles: ['ADMIN'] },
   { path: '/admins', label: 'Quản trị viên', icon: UserCog, roles: ['ADMIN'] },

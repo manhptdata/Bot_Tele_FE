@@ -101,6 +101,8 @@ export interface OrderDetail {
   orderCode: string;
   subtotalAmount?: number;
   feeAmount?: number;
+  discountAmount?: number;
+  voucherCode?: string;
   totalAmount: number;
   status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'DELIVERY_REVIEW_REQUIRED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';
@@ -124,6 +126,8 @@ export interface OrderTable {
   orderCode: string;
   subtotalAmount?: number;
   feeAmount?: number;
+  discountAmount?: number;
+  voucherCode?: string;
   totalAmount: number;
   status: 'PENDING' | 'PAID' | 'DELIVERY_PENDING' | 'PAID_MANUAL_PENDING' | 'PAID_REVIEW_REQUIRED' | 'DELIVERY_FAILED' | 'DELIVERY_REVIEW_REQUIRED' | 'COMPLETED' | 'CANCELLED' | 'CANCELLED_UNDERPAID' | 'REFUNDED' | 'EXPIRED';
   deliveryMode: 'AUTO' | 'MANUAL';

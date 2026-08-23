@@ -27,6 +27,7 @@ import {
   MessageSquare,
   Truck,
   RefreshCw,
+  Ticket,
   type LucideIcon,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -387,9 +388,14 @@ ${payload}
                     </td>
                     <td className="p-4">
                       <div className="text-green-400 font-bold font-mono">{order.totalAmount.toLocaleString()}đ</div>
+                      {order.discountAmount && order.discountAmount > 0 ? (
+                        <div className="text-[11px] text-amber-400 font-mono flex items-center gap-0.5">
+                          <Ticket size={10} /> -{order.discountAmount.toLocaleString()}đ ({order.voucherCode || 'Mã'})
+                        </div>
+                      ) : null}
                       {order.feeAmount && order.feeAmount > 0 ? (
-                        <div className="text-[11px] text-amber-400/80">
-                          (Gồm +{order.feeAmount.toLocaleString()}đ phí CK)
+                        <div className="text-[11px] text-slate-400">
+                          (+{order.feeAmount.toLocaleString()}đ phí)
                         </div>
                       ) : null}
                     </td>
@@ -633,11 +639,31 @@ ${payload}
                         {renderOrderStatusBadge(orderDetail.status)}
                       </div>
                       <div className="space-y-2 text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-400">Tổng thanh toán:</span>
+                        {orderDetail.subtotalAmount && (
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="text-slate-400">Tiền hàng:</span>
+                            <span className="text-slate-200 font-mono">{orderDetail.subtotalAmount.toLocaleString()}đ</span>
+                          </div>
+                        )}
+                        {orderDetail.discountAmount && orderDetail.discountAmount > 0 ? (
+                          <div className="flex justify-between items-center text-xs text-amber-400">
+                            <span className="flex items-center gap-1">
+                              <Ticket size={12} /> Voucher ({orderDetail.voucherCode || 'Mã giảm giá'}):
+                            </span>
+                            <span className="font-bold font-mono">-{orderDetail.discountAmount.toLocaleString()}đ</span>
+                          </div>
+                        ) : null}
+                        {orderDetail.feeAmount && orderDetail.feeAmount > 0 ? (
+                          <div className="flex justify-between items-center text-xs text-slate-400">
+                            <span>Phí giao dịch:</span>
+                            <span className="font-mono">+{orderDetail.feeAmount.toLocaleString()}đ</span>
+                          </div>
+                        ) : null}
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-700/40">
+                          <span className="text-slate-300 font-medium">Tổng thanh toán:</span>
                           <span className="text-emerald-400 font-bold font-mono text-base">{orderDetail.totalAmount?.toLocaleString()}đ</span>
                         </div>
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center pt-1">
                           <span className="text-slate-400">Phương thức:</span>
                           <span className="text-white font-medium">{orderDetail.paymentMethod === 'BANK_TRANSFER' ? '🏦 Chuyển khoản SePay' : '💳 Ví Bot'}</span>
                         </div>

@@ -43,6 +43,7 @@ export const baseApi = createApi({
     'Wallet',
     'BotConfig',
     'SetupStatus',
+    'Voucher',
   ] as const,
   endpoints: (_builder) => ({}),
 });

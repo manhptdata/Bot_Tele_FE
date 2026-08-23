@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useGetProductsQuery, useDeleteProductMutation, useCreateProductMutation, useUpdateProductMutation } from '../api/productApi';
 import { useGetCategoriesQuery, useCreateCategoryMutation } from '../api/categoryApi';
 import { ProductUpsertPayload } from '../types';
-import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, PlusCircle, MinusCircle, Bot, Sparkles, FolderTree, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, FolderTree, RefreshCw, Copy, Check, PlusCircle, MinusCircle, Sparkles, Bot, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
@@ -12,15 +12,53 @@ import { generateShortSlug } from '../utils/slugUtils';
 export const ProductsPage = () => {
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  const handleCopyCode = (e: React.MouseEvent, slug: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(slug);
+    setCopiedSlug(slug);
+    toast.success(`Đã sao chép mã (Slug): ${slug}`);
+    setTimeout(() => {
+      setCopiedSlug((prev) => (prev === slug ? null : prev));
+    }, 1500);
+  };
+
+  const [filterCategoryId, setFilterCategoryId] = useState<string>('');
+  const [filterStock, setFilterStock] = useState<string>('');
+  const [filterDeliveryMode, setFilterDeliveryMode] = useState<string>('');
+  const [filterActive, setFilterActive] = useState<string>('');
 
   const { data: pageResponse, isLoading } = useGetProductsQuery({
     page,
     size: 10,
-    keyword: debouncedSearchTerm
+    keyword: debouncedSearchTerm,
+    categoryId: filterCategoryId ? Number(filterCategoryId) : undefined
   });
 
-  const products = pageResponse?.content || [];
+  const rawProducts = pageResponse?.content || [];
+  const products = rawProducts.filter(p => {
+    if (filterStock === 'OUT_OF_STOCK' && p.stockCount > 0) return false;
+    if (filterStock === 'IN_STOCK' && p.stockCount === 0) return false;
+    if (filterDeliveryMode && p.deliveryMode !== filterDeliveryMode) return false;
+    if (filterActive === 'ACTIVE' && !p.isActive) return false;
+    if (filterActive === 'INACTIVE' && p.isActive) return false;
+    return true;
+  });
+
+  const hasActiveFilters = Boolean(
+    searchTerm || filterCategoryId || filterStock || filterDeliveryMode || filterActive
+  );
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setFilterCategoryId('');
+    setFilterStock('');
+    setFilterDeliveryMode('');
+    setFilterActive('');
+    setPage(0);
+  };
   const { data: categoriesPage } = useGetCategoriesQuery({ size: 100 });
   const categories = categoriesPage?.content || [];
   const [deleteProduct] = useDeleteProductMutation();
@@ -237,19 +275,102 @@ export const ProductsPage = () => {
         </button>
       </div>
 
-      <div className="flex items-center space-x-4">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+      {/* Filter Toolbar */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+        <div className="relative flex-1 min-w-[240px]">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Tìm kiếm sản phẩm..."
+            placeholder="Tìm theo tên, mã slug..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
               setPage(0);
             }}
-            className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-slate-800/80 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder-slate-500"
           />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Lọc danh mục */}
+          <div className="relative min-w-[150px] flex-1 sm:flex-initial">
+            <select
+              value={filterCategoryId}
+              onChange={(e) => {
+                setFilterCategoryId(e.target.value);
+                setPage(0);
+              }}
+              className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">📁 Tất cả danh mục</option>
+              {categories.map((c: any) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Lọc tình trạng kho */}
+          <div className="relative min-w-[140px] flex-1 sm:flex-initial">
+            <select
+              value={filterStock}
+              onChange={(e) => {
+                setFilterStock(e.target.value);
+                setPage(0);
+              }}
+              className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">📦 Tất cả kho</option>
+              <option value="OUT_OF_STOCK">🔴 Hết hàng (0 acc)</option>
+              <option value="IN_STOCK">🟢 Còn hàng (&gt; 0 acc)</option>
+            </select>
+          </div>
+
+          {/* Lọc chế độ giao hàng */}
+          <div className="relative min-w-[140px] flex-1 sm:flex-initial">
+            <select
+              value={filterDeliveryMode}
+              onChange={(e) => {
+                setFilterDeliveryMode(e.target.value);
+                setPage(0);
+              }}
+              className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">⚡ Tất cả chế độ</option>
+              <option value="AUTO">⚡ Tự động (Kho)</option>
+              <option value="MANUAL">👤 Thủ công (Admin)</option>
+            </select>
+          </div>
+
+          {/* Lọc trạng thái bán */}
+          <div className="relative min-w-[130px] flex-1 sm:flex-initial">
+            <select
+              value={filterActive}
+              onChange={(e) => {
+                setFilterActive(e.target.value);
+                setPage(0);
+              }}
+              className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="">🔘 Trạng thái</option>
+              <option value="ACTIVE">Đang mở bán</option>
+              <option value="INACTIVE">Tạm ngừng bán</option>
+            </select>
+          </div>
+
+          {/* Nút đặt lại bộ lọc */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-colors shrink-0 cursor-pointer"
+              title="Xóa toàn bộ bộ lọc về mặc định"
+            >
+              <RotateCcw size={13} />
+              <span>Đặt lại</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -258,6 +379,7 @@ export const ProductsPage = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-700/50 bg-slate-800/30 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                <th className="p-4">Mã (Slug)</th>
                 <th className="p-4">Ảnh</th>
                 <th className="p-4">Sản phẩm</th>
                 <th className="p-4">Giá (VND)</th>
@@ -270,11 +392,11 @@ export const ProductsPage = () => {
             <tbody className="divide-y divide-slate-800/50 text-sm">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500">Đang tải dữ liệu...</td>
+                  <td colSpan={8} className="p-8 text-center text-slate-500">Đang tải dữ liệu...</td>
                 </tr>
               ) : products.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-slate-500">
+                  <td colSpan={8} className="p-8 text-center text-slate-500">
                     <div className="flex flex-col items-center">
                       <Package size={48} className="mb-2 opacity-20" />
                       <p>Chưa có sản phẩm nào</p>
@@ -284,6 +406,25 @@ export const ProductsPage = () => {
               ) : (
                 products.map((product) => (
                   <tr key={product.id} className="hover:bg-slate-800/30 transition-colors">
+                    <td className="p-4">
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyCode(e, product.slug)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold border transition-all duration-200 group cursor-pointer ${
+                          copiedSlug === product.slug
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/50'
+                            : 'bg-slate-800/80 text-purple-400 border-slate-700 hover:bg-slate-700/80 hover:border-purple-500/50 hover:text-purple-300'
+                        }`}
+                        title="Bấm chuột trái để sao chép mã Slug"
+                      >
+                        {copiedSlug === product.slug ? (
+                          <Check size={13} className="text-emerald-400 animate-in zoom-in-50" />
+                        ) : (
+                          <Copy size={13} className="text-slate-400 group-hover:text-purple-400 transition-colors" />
+                        )}
+                        <span>{product.slug}</span>
+                      </button>
+                    </td>
                     <td className="p-4">
                       {product.imageUrl ? (
                         <img src={product.imageUrl} alt={product.name} className="w-10 h-10 object-cover rounded-lg border border-slate-700" />
@@ -295,7 +436,7 @@ export const ProductsPage = () => {
                     </td>
                     <td className="p-4">
                       <div className="font-medium text-white">{product.name}</div>
-                      <div className="text-xs text-slate-400 font-mono">/{product.slug}</div>
+                      <div className="text-xs text-slate-500 font-mono">ID: #{product.id}</div>
                     </td>
                     <td className="p-4 text-green-400 font-bold font-mono">{product.price.toLocaleString()}đ</td>
                     <td className="p-4">
@@ -699,8 +840,24 @@ export const ProductsPage = () => {
                   <div className="flex items-center gap-2 mb-3 text-slate-300 font-semibold border-b border-slate-700/50 pb-2">
                     <Package size={18} /> Thông Tin Chung
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Mã (Slug):</span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyCode(e, viewProductInfo.slug)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-mono font-bold border transition-all cursor-pointer ${
+                        copiedSlug === viewProductInfo.slug
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-slate-900/80 text-purple-400 border-slate-700 hover:bg-slate-700 hover:text-white'
+                      }`}
+                      title="Bấm để sao chép mã Slug"
+                    >
+                      {copiedSlug === viewProductInfo.slug ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                      {viewProductInfo.slug}
+                    </button>
+                  </div>
                   <p><span className="text-slate-400">Tên SP:</span> <span className="text-white font-medium">{viewProductInfo.name}</span></p>
-                  <p><span className="text-slate-400">Mã (Slug):</span> <span className="text-white">{viewProductInfo.slug}</span></p>
+                  <p><span className="text-slate-400">ID hệ thống:</span> <span className="text-slate-400 font-mono">#{viewProductInfo.id}</span></p>
                   <p><span className="text-slate-400">Giá:</span> <span className="text-green-400 font-bold">{viewProductInfo.price.toLocaleString()}đ</span></p>
                   <p><span className="text-slate-400">Danh mục ID:</span> <span className="text-white">{viewProductInfo.categoryId}</span></p>
                   <p>

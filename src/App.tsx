@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { BroadcastPage } from './pages/BroadcastPage';
 import { AdminsPage } from './pages/AdminsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { VouchersPage } from './pages/VouchersPage';
 
 import { useSelector } from 'react-redux';
 import { RootState } from './store/store';
@@ -47,6 +48,7 @@ function App() {
             {/* Admin Only Routes */}
             <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/vouchers" element={<VouchersPage />} />
               <Route path="/broadcast" element={<BroadcastPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/admins" element={<AdminsPage />} />
