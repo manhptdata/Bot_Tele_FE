@@ -69,4 +69,4 @@ fe_admin/
    ```bash
    npm run build
    ```
-   Kết quả build sẽ nằm trong thư mục `dist/`.  
+   Kết quả build sẽ nằm trong thư mục `dist/`.   
