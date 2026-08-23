@@ -59,11 +59,14 @@ fe_admin/
 - `baseApi.ts` sẽ tự động bốc Token từ Redux State và nhét vào Header `Authorization: Bearer <token>` trong mọi Request gọi về BE.
 - Nếu Token hết hạn hoặc chưa đăng nhập, `ProtectedRoute` sẽ tự động văng người dùng về trang `/login`.
 
-## 📦 Build lên Môi trường Production
+## 📦 Deploy lên Vercel / Production
 
-Để đóng gói ra thư mục tĩnh (Static HTML/CSS/JS) chuẩn bị mang đi host (ví dụ: Nginx, Vercel, Netlify): 
+1. **Cấu hình Biến môi trường trên Vercel (Project Settings -> Environment Variables):**
+   - **Tên biến:** `VITE_API_BASE_URL`
+   - **Giá trị:** `https://your-backend-app.onrender.com/api/v1` *(BẮT BUỘC phải có đuôi `/api/v1`)*
 
-```bash
-npm run build
-```
-Kết quả build sẽ nằm trong thư mục `dist/`. 
+2. **Lệnh build thủ công (nếu cần):**
+   ```bash
+   npm run build
+   ```
+   Kết quả build sẽ nằm trong thư mục `dist/`.  

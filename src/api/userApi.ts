@@ -26,6 +26,7 @@ export interface UserCreateRequest {
   zalo?: string;
   telegramUsername?: string;
   isSupportContact?: boolean;
+  adminPassword?: string;
 }
 
 export interface UserUpdateRequest {
@@ -39,6 +40,7 @@ export interface UserUpdateRequest {
   zalo?: string;
   telegramUsername?: string;
   isSupportContact?: boolean;
+  adminPassword?: string;
 }
 
 export interface UserProfileUpdateRequest {
@@ -50,6 +52,7 @@ export interface UserProfileUpdateRequest {
   telegramUsername?: string;
   isSupportContact?: boolean;
   newPassword?: string;
+  currentPassword?: string;
 }
 
 export interface ChangePasswordRequest {

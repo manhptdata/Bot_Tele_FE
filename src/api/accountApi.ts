@@ -25,7 +25,7 @@ export const accountApi = baseApi.injectEndpoints({
       },
       providesTags: ['Account'],
     }),
-    addBulkAccounts: builder.mutation<any, { productId: number; accountDataList: string[][] }>({
+    addBulkAccounts: builder.mutation<any, { productId: number; accountDataList: string[][]; notifyCustomers?: boolean }>({
       query: (body) => ({
         url: '/accounts/bulk',
         method: 'POST',
@@ -33,12 +33,13 @@ export const accountApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Account', 'Product'],
     }),
-    importExcel: builder.mutation<any, { productId: number; file: File }>({
-      query: ({ productId, file }) => {
+    importExcel: builder.mutation<any, { productId: number; file: File; notifyCustomers?: boolean }>({
+      query: ({ productId, file, notifyCustomers }) => {
         const formData = new FormData();
         formData.append('file', file);
+        const notifyParam = notifyCustomers ? '&notifyCustomers=true' : '';
         return {
-          url: `/accounts/import/excel?productId=${productId}`,
+          url: `/accounts/import/excel?productId=${productId}${notifyParam}`,
           method: 'POST',
           body: formData,
         };

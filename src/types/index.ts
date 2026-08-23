@@ -179,3 +179,51 @@ export interface StepUpPasswordRequest {
   adminPassword: string;
 }
 
+export type BotMode = 'LONG_POLLING' | 'WEBHOOK';
+export type BotStatus = 'DISCONNECTED' | 'STARTING' | 'RUNNING' | 'STOPPED' | 'FAILED';
+
+export interface BotConfig {
+  id?: number;
+  botUsername: string;
+  maskedToken: string;
+  mode: BotMode;
+  webhookUrl?: string;
+  adminChatId?: number;
+  contactTelegram?: string;
+  contactPhone?: string;
+  status: BotStatus;
+  isActive: boolean;
+  errorMessage?: string;
+  updatedAt?: string;
+}
+
+export interface SetupStatus {
+  botConnected: boolean;
+  productsCreated: boolean;
+  paymentConfigured: boolean;
+  botUsername?: string;
+}
+
+export interface ConnectBotRequest {
+  botToken: string;
+  mode?: BotMode;
+  webhookUrl?: string;
+  adminPassword: string;
+}
+
+export interface BotConfigSaveRequest {
+  mode: BotMode;
+  webhookUrl?: string;
+  webhookSecretToken?: string;
+  clearWebhookSecret?: boolean;
+  adminChatId?: number;
+  contactTelegram?: string;
+  contactPhone?: string;
+  adminPassword: string;
+}
+
+export interface DisconnectBotRequest {
+  adminPassword: string;
+}
+
+

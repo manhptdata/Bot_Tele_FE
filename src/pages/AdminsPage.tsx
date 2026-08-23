@@ -21,6 +21,8 @@ export const AdminsPage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
   
   const [formData, setFormData] = useState({
     username: '',
@@ -39,6 +41,11 @@ export const AdminsPage = () => {
 
   const currentUser = meData;
 
+  const isCreatingAdmin = !editingUser && formData.role === 'ADMIN';
+  const isPromotingToAdmin = Boolean(editingUser && editingUser.role !== 'ADMIN' && formData.role === 'ADMIN');
+  const isResettingPassword = Boolean(editingUser && formData.password.trim() !== '');
+  const isSensitiveAction = isCreatingAdmin || isPromotingToAdmin || isResettingPassword;
+
   // Access Control
   if (currentUser?.role !== 'ADMIN') {
     return (
@@ -51,6 +58,8 @@ export const AdminsPage = () => {
   }
 
   const handleOpenModal = (user?: any) => {
+    setAdminPassword('');
+    setShowAdminPassword(false);
     if (user) {
       setEditingUser(user);
       setFormData({
@@ -85,6 +94,12 @@ export const AdminsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSensitiveAction && !adminPassword.trim()) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận của bạn.');
+      return;
+    }
+
     try {
       if (editingUser) {
         await updateUser({
@@ -99,6 +114,7 @@ export const AdminsPage = () => {
             zalo: formData.zalo.trim() || undefined,
             telegramUsername: formData.telegramUsername.trim() || undefined,
             isSupportContact: formData.isSupportContact,
+            adminPassword: adminPassword.trim() || undefined,
           }
         }).unwrap();
         toast.success('Cập nhật tài khoản thành công!');
@@ -113,9 +129,11 @@ export const AdminsPage = () => {
           zalo: formData.zalo.trim() || undefined,
           telegramUsername: formData.telegramUsername.trim() || undefined,
           isSupportContact: formData.isSupportContact,
+          adminPassword: adminPassword.trim() || undefined,
         }).unwrap();
         toast.success('Thêm tài khoản thành công!');
       }
+      setAdminPassword('');
       setIsModalOpen(false);
     } catch (error: any) {
       toast.error(error?.data?.message || 'Có lỗi xảy ra');
@@ -168,13 +186,15 @@ export const AdminsPage = () => {
           </h1>
           <p className="text-slate-400">Quản lý danh sách và phân quyền Admin/Staff</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
-        >
-          <Plus size={20} />
-          <span>Thêm tài khoản</span>
-        </button>
+        {currentUser?.id === 1 && (
+          <button
+            onClick={() => handleOpenModal()}
+            className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors shadow-lg shadow-blue-500/20"
+          >
+            <Plus size={20} />
+            <span>Thêm tài khoản</span>
+          </button>
+        )}
       </div>
 
       <div className="flex-1 glass rounded-xl border border-[var(--border-color)] overflow-hidden flex flex-col">
@@ -476,6 +496,40 @@ export const AdminsPage = () => {
                   </label>
                 </div>
               </div>
+
+              {/* Step-Up Password Verification Box */}
+              {isSensitiveAction && (
+                <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 animate-in fade-in duration-200">
+                  <label className="block text-xs font-semibold text-amber-300 flex items-center gap-1.5">
+                    <Shield size={14} className="text-amber-400" />
+                    Mật khẩu xác nhận của bạn <span className="text-red-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      placeholder="Nhập mật khẩu của bạn để xác nhận hành động..."
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      className="w-full bg-slate-900 border border-amber-500/40 rounded-lg px-3 py-2 text-white text-xs focus:outline-none focus:border-amber-400 pr-9"
+                      autoComplete="new-password"
+                      data-lpignore="true"
+                      data-form-type="other"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                    >
+                      {showAdminPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-amber-200/80 leading-relaxed">
+                    {isCreatingAdmin && "Bắt buộc xác thực mật khẩu Super Admin khi tạo tài khoản ADMIN mới."}
+                    {isPromotingToAdmin && "Bắt buộc xác thực mật khẩu khi nâng quyền nhân viên lên ADMIN."}
+                    {isResettingPassword && !isPromotingToAdmin && "Bắt buộc xác thực mật khẩu khi đặt lại mật khẩu cho tài khoản này."}
+                  </p>
+                </div>
+              )}
 
               <div className="flex justify-end space-x-3 pt-4 mt-4 border-t border-slate-800">
                 <button

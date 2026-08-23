@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { RootState } from '../../store/store';
+import { useGetMeQuery } from '../../api/userApi';
 import {
   LayoutDashboard,
   Package,
@@ -28,10 +31,11 @@ interface NavItem {
   label: string;
   icon: any;
   children?: SubNavItem[];
+  roles?: string[];
 }
 
 const navItems: NavItem[] = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['ADMIN'] },
   { path: '/categories', label: 'Danh mục', icon: FolderTree },
   { path: '/products', label: 'Sản phẩm', icon: Package },
   { path: '/accounts', label: 'Nhập kho', icon: Warehouse },
@@ -44,14 +48,17 @@ const navItems: NavItem[] = [
     ],
   },
   { path: '/customers', label: 'Khách hàng', icon: Users },
-  { path: '/broadcast', label: 'Phát sóng', icon: Radio },
-  { path: '/settings', label: 'Cấu hình', icon: Settings },
-  { path: '/admins', label: 'Quản trị viên', icon: UserCog },
+  { path: '/broadcast', label: 'Phát sóng', icon: Radio, roles: ['ADMIN'] },
+  { path: '/settings', label: 'Cấu hình', icon: Settings, roles: ['ADMIN'] },
+  { path: '/admins', label: 'Quản trị viên', icon: UserCog, roles: ['ADMIN'] },
   { path: '/profile', label: 'Hồ sơ cá nhân', icon: UserCircle },
 ];
 
 export const Sidebar = () => {
   const location = useLocation();
+  const authUser = useSelector((state: RootState) => state.auth.user);
+  const { data: meData } = useGetMeQuery();
+  const currentUser = meData || authUser;
 
   // Kiểm tra xem hiện tại có đang ở trang đơn hàng hoặc webhook không
   const isOrderPathActive =
@@ -75,6 +82,11 @@ export const Sidebar = () => {
       </div>
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
         {navItems.map((item) => {
+          // Check role permissions
+          if (item.roles && (!currentUser || !item.roles.includes(currentUser.role))) {
+            return null;
+          }
+
           const Icon = item.icon;
 
           // Nếu là menu có submenu (Đơn hàng)

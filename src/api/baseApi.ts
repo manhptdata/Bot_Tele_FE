@@ -41,6 +41,8 @@ export const baseApi = createApi({
     'User',
     'Customer',
     'Wallet',
+    'BotConfig',
+    'SetupStatus',
   ] as const,
   endpoints: (_builder) => ({}),
 });

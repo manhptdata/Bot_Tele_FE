@@ -3,6 +3,7 @@ import {
   useConfirmOrderMutation,
   useGetOrderByIdQuery,
   useRetryDeliveryMutation,
+  useCompleteManualDeliveryMutation,
   useMarkManuallyDeliveredMutation,
   useRefundOrderMutation,
 } from '../api/orderApi';
@@ -87,6 +88,7 @@ export const OrdersPage = () => {
   const orders = pageResponse?.content || [];
   const [confirmOrder, { isLoading: isConfirming }] = useConfirmOrderMutation();
   const [retryDelivery, { isLoading: isRetrying }] = useRetryDeliveryMutation();
+  const [completeManualDelivery, { isLoading: isCompletingManual }] = useCompleteManualDeliveryMutation();
   const [markManuallyDelivered, { isLoading: isMarkingDelivered }] = useMarkManuallyDeliveredMutation();
   const [refundOrder, { isLoading: isRefunding }] = useRefundOrderMutation();
 
@@ -101,6 +103,7 @@ export const OrdersPage = () => {
     customerName: string;
     customerUsername?: string;
     totalAmount: number;
+    deliveryMode: 'AUTO' | 'MANUAL';
   } | null>(null);
   const [manualDeliveryNote, setManualDeliveryNote] = useState('');
   // State cho hiệu ứng Copy
@@ -141,15 +144,25 @@ export const OrdersPage = () => {
   const handleManualDeliverySubmit = async () => {
     if (!manualDeliveryTarget) return;
     try {
-      await markManuallyDelivered({
-        orderId: manualDeliveryTarget.id,
-        note: manualDeliveryNote.trim() || 'Đã giao thủ công bởi Admin',
-      }).unwrap();
+      if (manualDeliveryTarget.deliveryMode === 'MANUAL') {
+        const content = manualDeliveryNote.trim() || 'Đã bàn giao tài khoản qua chat Telegram';
+        await completeManualDelivery({
+          orderId: manualDeliveryTarget.id,
+          source: 'CUSTOM',
+          content: content,
+          releaseExistingReservations: true,
+        }).unwrap();
+      } else {
+        await markManuallyDelivered({
+          orderId: manualDeliveryTarget.id,
+          note: manualDeliveryNote.trim() || 'Đã giao thủ công bởi Admin',
+        }).unwrap();
+      }
       toast.success('Đã đánh dấu đơn hàng hoàn thành!');
       setManualDeliveryTarget(null);
       setManualDeliveryNote('');
     } catch (err: any) {
-      toast.error(err?.data?.message || 'Không thể đánh dấu đã giao.');
+      toast.error(err?.data?.message || err?.data?.error || 'Không thể đánh dấu đã giao.');
     }
   };
 
@@ -433,10 +446,11 @@ ${payload}
                                 customerName: order.customer.firstName,
                                 customerUsername: order.customer.username,
                                 totalAmount: order.totalAmount,
+                                deliveryMode: order.deliveryMode,
                               });
                               setManualDeliveryNote('Đã bàn giao tài khoản qua chat Telegram');
                             }}
-                            disabled={isRetrying || isMarkingDelivered || isRefunding}
+                            disabled={isRetrying || isMarkingDelivered || isCompletingManual || isRefunding}
                             className="btn bg-purple-600/20 text-purple-300 border border-purple-500/30 hover:bg-purple-600 hover:text-white px-2.5 py-1 text-xs disabled:opacity-50 font-semibold flex items-center gap-1"
                           >
                             <Truck size={12} />
@@ -689,7 +703,7 @@ ${payload}
                             <div key={item.id} className="bg-slate-800/50 rounded-xl border border-slate-700/80 overflow-hidden">
                               <div className="p-3.5 bg-slate-800/80 border-b border-slate-700/80 flex justify-between items-center">
                                 <div>
-                                  <div className="font-bold text-white text-sm">{item.productName}</div>
+                                   <div className="font-bold text-white text-sm">{item.productName}</div>
                                   <div className="text-xs text-slate-400 mt-0.5">
                                     Số lượng: <span className="text-white font-semibold">{item.quantity}</span> x {item.unitPrice?.toLocaleString()}đ
                                   </div>
@@ -783,7 +797,30 @@ ${payload}
                   <span className="text-slate-400">Tổng tiền:</span>
                   <span className="text-emerald-400 font-mono font-bold">{manualDeliveryTarget.totalAmount?.toLocaleString()}đ</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Hình thức:</span>
+                  <span className="text-purple-300 font-semibold">
+                    {manualDeliveryTarget.deliveryMode === 'MANUAL' ? 'Giao thủ công (Tự nhập)' : 'Giao tự động (Xử lý ngoài bot)'}
+                  </span>
+                </div>
               </div>
+
+              {manualDeliveryTarget.deliveryMode === 'MANUAL' && (
+                <div className="bg-blue-500/10 border border-blue-500/30 p-2.5 rounded-xl text-xs text-blue-300 flex items-center justify-between">
+                  <span>💡 Muốn bốc tài khoản có sẵn trong kho?</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const id = manualDeliveryTarget.id;
+                      setManualDeliveryTarget(null);
+                      setSelectedOrderId(id);
+                    }}
+                    className="text-xs font-bold text-blue-400 hover:underline flex items-center gap-1"
+                  >
+                    Mở chi tiết đơn <ExternalLink size={12} />
+                  </button>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -812,8 +849,8 @@ ${payload}
                 <button
                   type="button"
                   onClick={handleManualDeliverySubmit}
-                  disabled={isMarkingDelivered}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-purple-600/30 flex items-center gap-1.5"
+                  disabled={isMarkingDelivered || isCompletingManual}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-purple-600/30 flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <Check size={14} />
                   Hoàn Tất Giao Hàng

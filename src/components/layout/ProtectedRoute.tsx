@@ -1,12 +1,23 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../store/store';
+import { useGetMeQuery } from '../../api/userApi';
 
-export const ProtectedRoute = () => {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+interface ProtectedRouteProps {
+  allowedRoles?: string[];
+}
+
+export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
+  const { isAuthenticated, user: authUser } = useSelector((state: RootState) => state.auth);
+  const { data: meData } = useGetMeQuery(undefined, { skip: !isAuthenticated });
+  const currentUser = meData || authUser;
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && currentUser && !allowedRoles.includes(currentUser.role)) {
+    return <Navigate to="/orders" replace />;
   }
 
   return <Outlet />;

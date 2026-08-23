@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react';
 import { useGetDashboardAnalyticsQuery } from '../api/dashboardApi';
 import { useGetAllWalletsQuery } from '../api/walletApi';
 import { useGetOrdersQuery } from '../api/orderApi';
+import { SetupWizard } from '../components/dashboard/SetupWizard';
 import {
   DollarSign,
   ShoppingCart,
@@ -259,6 +260,9 @@ export const DashboardPage = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
+      {/* 3-Step Setup Wizard for Onboarding */}
+      <SetupWizard />
+
       {/* Header & Date Range Filter Bar */}
       <div className="space-y-4">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-slate-900/90 p-5 rounded-2xl border border-slate-800 shadow-xl">

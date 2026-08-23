@@ -48,6 +48,7 @@ export const AccountsPage = () => {
   const [manualData, setManualData] = useState<string[]>([]);
   const [bulkText, setBulkText] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
+  const [notifyCustomers, setNotifyCustomers] = useState(false);
   
   const [viewAccount, setViewAccount] = useState<any | null>(null);
 
@@ -119,12 +120,12 @@ export const AccountsPage = () => {
         return;
       }
       try {
-        const res = await importExcel({ productId: Number(selectedProductId), file }).unwrap();
-        toast.success(`Đã nạp thành công ${res.successCount} account`);
+        const res = await importExcel({ productId: Number(selectedProductId), file, notifyCustomers }).unwrap();
+        toast.success(`Đã nạp thành công ${res.successCount} account` + (notifyCustomers ? ' (Đang gửi thông báo Telegram cho khách)' : ''));
         setFile(null);
         setActiveTab('LIST');
       } catch (err: any) {
-        toast.error(err?.data || 'Lỗi khi nạp account');
+        toast.error(err?.data?.message || err?.data?.error || (typeof err?.data === 'string' ? err.data : null) || 'Lỗi khi nạp account');
       }
     } else if (importMode === 'TEXTAREA') {
       if (!bulkText.trim()) {
@@ -138,12 +139,13 @@ export const AccountsPage = () => {
       try {
         await addBulkAccounts({ 
           productId: Number(selectedProductId), 
-          accountDataList 
+          accountDataList,
+          notifyCustomers
         }).unwrap();
-        toast.success(`Đã nạp ${accountDataList.length} account thành công`);
+        toast.success(`Đã nạp ${accountDataList.length} account thành công` + (notifyCustomers ? ' (Đang gửi thông báo Telegram cho khách)' : ''));
         setBulkText('');
       } catch (err: any) {
-        toast.error(err?.data || 'Lỗi khi thêm account');
+        toast.error(err?.data?.message || err?.data?.error || (typeof err?.data === 'string' ? err.data : null) || 'Lỗi khi thêm account');
       }
     } else {
       if (manualData.some(d => !d.trim())) {
@@ -153,12 +155,13 @@ export const AccountsPage = () => {
       try {
         await addBulkAccounts({ 
           productId: Number(selectedProductId), 
-          accountDataList: [manualData] 
+          accountDataList: [manualData],
+          notifyCustomers
         }).unwrap();
-        toast.success('Đã thêm 1 account thành công');
+        toast.success('Đã thêm 1 account thành công' + (notifyCustomers ? ' (Đang gửi thông báo Telegram cho khách)' : ''));
         setManualData(new Array(accountFormatFields.length).fill(''));
       } catch (err: any) {
-        toast.error(err?.data || 'Lỗi khi thêm account');
+        toast.error(err?.data?.message || err?.data?.error || (typeof err?.data === 'string' ? err.data : null) || 'Lỗi khi thêm account');
       }
     }
   };
@@ -448,6 +451,26 @@ export const AccountsPage = () => {
                     </span>
                   </label>
                 </div>
+              </div>
+            )}
+
+            {selectedProductId && (
+              <div className="p-4 rounded-xl bg-gradient-to-r from-blue-950/40 via-slate-900/60 to-purple-950/40 border border-blue-500/30 flex items-start gap-3 transition-all">
+                <input
+                  type="checkbox"
+                  id="notifyCustomersCheck"
+                  checked={notifyCustomers}
+                  onChange={(e) => setNotifyCustomers(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-slate-700 cursor-pointer shrink-0"
+                />
+                <label htmlFor="notifyCustomersCheck" className="cursor-pointer space-y-0.5 select-none">
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <span>📢 Gửi thông báo Telegram cho toàn bộ khách hàng về đợt hàng mới này</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Tất cả khách hàng từng nhắn tin với Bot sẽ nhận được tin nhắn thông báo kèm nút <strong>"🛒 Mua ngay"</strong> để đặt mua tức thì.
+                  </p>
+                </label>
               </div>
             )}
 

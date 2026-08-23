@@ -35,6 +35,8 @@ import {
   UserX,
   X,
   Eye,
+  EyeOff,
+  Shield,
   Copy,
   Check,
   User,
@@ -1185,6 +1187,8 @@ const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose
   const [action, setAction] = useState<'REFUND' | 'DEPOSIT'>('REFUND');
   const [amount, setAmount] = useState<string>('');
   const [reason, setReason] = useState<string>('');
+  const [adminPassword, setAdminPassword] = useState<string>('');
+  const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const requestIdentityRef = useRef<{ signature: string; requestId: string } | null>(null);
   const [adjustWallet, { isLoading }] = useAdjustCustomerWalletMutation();
 
@@ -1211,6 +1215,10 @@ const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose
       toast.error('Vui lòng nhập lý do điều chỉnh');
       return;
     }
+    if (!adminPassword.trim()) {
+      toast.error('Vui lòng nhập mật khẩu xác nhận của bạn');
+      return;
+    }
 
     const signature = `${customer.id}|${action}|${numAmount}|${reason.trim()}`;
     if (!requestIdentityRef.current || requestIdentityRef.current.signature !== signature) {
@@ -1225,9 +1233,11 @@ const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose
           amount: numAmount,
           reason: reason.trim(),
           requestId: requestIdentityRef.current.requestId,
+          adminPassword: adminPassword.trim(),
         },
       }).unwrap();
       toast.success(action === 'REFUND' ? 'Hoàn tiền / trừ ví thành công!' : 'Cộng tiền ví thành công!');
+      setAdminPassword('');
       onClose();
     } catch (err: any) {
       toast.error(err?.data?.message || 'Có lỗi xảy ra khi điều chỉnh ví');
@@ -1327,6 +1337,37 @@ const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose
             />
           </div>
 
+          {/* BẢO MẬT: Nhập mật khẩu xác nhận của Admin */}
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-1.5">
+            <label className="block text-xs font-semibold text-amber-300 mb-1 flex items-center gap-1.5">
+              <Shield size={14} className="text-amber-400" />
+              Mật khẩu xác nhận của bạn <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showAdminPassword ? 'text' : 'password'}
+                placeholder="Nhập mật khẩu tài khoản của bạn..."
+                value={adminPassword}
+                onChange={(e) => setAdminPassword(e.target.value)}
+                className="w-full bg-slate-950 border border-amber-500/40 rounded-xl px-3.5 py-2 text-white text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 pr-9"
+                required
+                autoComplete="new-password"
+                data-lpignore="true"
+                data-form-type="other"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAdminPassword(!showAdminPassword)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                {showAdminPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+            <p className="text-[10px] text-amber-200/70">
+              Nhập mật khẩu để bảo vệ an toàn tài chính và phòng chống can thiệp trái phép.
+            </p>
+          </div>
+
           <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
             <button
               type="button"
@@ -1337,7 +1378,7 @@ const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose
             </button>
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || !adminPassword.trim() || !amount || !reason.trim()}
               className={`px-4 py-2 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-1.5 transition-all disabled:opacity-50 ${
                 action === 'REFUND'
                   ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-600/30'

@@ -53,6 +53,7 @@ export interface AdjustWalletPayload {
   amount: number;
   reason: string;
   requestId: string;
+  adminPassword: string;
 }
 
 export const customerApi = baseApi.injectEndpoints({
