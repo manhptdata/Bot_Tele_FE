@@ -6,6 +6,7 @@ import { ProductUpsertPayload } from '../types';
 import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, FolderTree, RefreshCw, Copy, Check, PlusCircle, MinusCircle, Sparkles, Bot, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
+import { CurrencyInput } from '../components/ui/CurrencyInput';
 import { useDebounce } from '../hooks/useDebounce';
 import { generateShortSlug } from '../utils/slugUtils';
 
@@ -630,7 +631,14 @@ export const ProductsPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Giá bán (VNĐ) (*)</label>
-                  <input required type="number" min="0.01" step="0.01" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} placeholder="65000" />
+                  <CurrencyInput
+                    required
+                    className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={formData.price}
+                    onChange={(val) => setFormData({ ...formData, price: val === '' ? '' : String(val) })}
+                    placeholder="65.000"
+                    suffix="đ"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Loại Giao Hàng</label>

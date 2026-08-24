@@ -18,6 +18,7 @@ import {
 } from '../api/customerApi';
 import { useGetOrderByIdQuery } from '../api/orderApi';
 import { Pagination } from '../components/ui/Pagination';
+import { CurrencyInput } from '../components/ui/CurrencyInput';
 import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
 import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
 import {
@@ -1302,13 +1303,13 @@ const AdjustWalletModal: React.FC<AdjustWalletModalProps> = ({ customer, onClose
             <label className="block text-xs font-semibold text-slate-300 mb-1.5">
               Số tiền cần {action === 'REFUND' ? 'trừ (VNĐ)' : 'cộng (VNĐ)'} <span className="text-red-400">*</span>
             </label>
-            <input
-              type="number"
-              placeholder="VD: 50000"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+            <CurrencyInput
+              placeholder="VD: 50.000"
+              value={amount === '' ? '' : Number(amount)}
+              onChange={(val) => setAmount(val === '' ? '' : String(val))}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white font-mono font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+              suffix="đ"
             />
             {action === 'REFUND' && customer.walletBalance && customer.walletBalance > 0 && (
               <div className="flex gap-1.5 mt-2">

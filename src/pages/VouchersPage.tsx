@@ -28,6 +28,8 @@ import {
 import { useGetProductsQuery } from '../api/productApi';
 import { useGetCustomersQuery } from '../api/customerApi';
 import { Pagination } from '../components/ui/Pagination';
+import { DateTimePicker } from '../components/ui/DateTimePicker';
+import { CurrencyInput } from '../components/ui/CurrencyInput';
 import { useDebounce } from '../hooks/useDebounce';
 
 export const VouchersPage = () => {
@@ -611,35 +613,46 @@ export const VouchersPage = () => {
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                     Mức giảm *
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    placeholder={formData.discountType === 'PERCENT' ? 'VD: 20 (%)' : 'VD: 50000 (đ)'}
-                    value={formData.discountValue}
-                    onChange={(e) =>
-                      setFormData({ ...formData, discountValue: e.target.value === '' ? '' : Number(e.target.value) })
-                    }
-                    className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
-                  />
+                  {formData.discountType === 'PERCENT' ? (
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      required
+                      placeholder="VD: 20 (%)"
+                      value={formData.discountValue}
+                      onChange={(e) =>
+                        setFormData({ ...formData, discountValue: e.target.value === '' ? '' : Number(e.target.value) })
+                      }
+                      className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                    />
+                  ) : (
+                    <CurrencyInput
+                      required
+                      placeholder="VD: 50.000 (đ)"
+                      value={formData.discountValue}
+                      onChange={(val) => setFormData({ ...formData, discountValue: val })}
+                      className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                      suffix="đ"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                     Giảm tối đa (đ)
                   </label>
-                  <input
-                    type="number"
-                    min="0"
+                  <CurrencyInput
                     disabled={formData.discountType !== 'PERCENT'}
-                    placeholder={formData.discountType === 'PERCENT' ? 'VD: 100000' : 'Không áp dụng'}
+                    placeholder={formData.discountType === 'PERCENT' ? 'VD: 100.000' : 'Không áp dụng'}
                     value={formData.maxDiscountAmount}
-                    onChange={(e) =>
+                    onChange={(val) =>
                       setFormData({
                         ...formData,
-                        maxDiscountAmount: e.target.value === '' ? '' : Number(e.target.value),
+                        maxDiscountAmount: val,
                       })
                     }
                     className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-40 font-mono"
+                    suffix={formData.discountType === 'PERCENT' ? 'đ' : undefined}
                   />
                 </div>
               </div>
@@ -650,15 +663,14 @@ export const VouchersPage = () => {
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                     Đơn tối thiểu (đ)
                   </label>
-                  <input
-                    type="number"
-                    min="0"
+                  <CurrencyInput
                     placeholder="0 = Không yêu cầu"
                     value={formData.minOrderAmount}
-                    onChange={(e) =>
-                      setFormData({ ...formData, minOrderAmount: e.target.value === '' ? '' : Number(e.target.value) })
+                    onChange={(val) =>
+                      setFormData({ ...formData, minOrderAmount: val })
                     }
                     className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
+                    suffix="đ"
                   />
                 </div>
                 <div>
@@ -698,28 +710,19 @@ export const VouchersPage = () => {
 
               {/* Thời hạn */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Thời gian bắt đầu
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.startDate}
-                    onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                    className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Thời gian kết thúc
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={formData.endDate}
-                    onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                    className="w-full px-3.5 py-2 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono"
-                  />
-                </div>
+                <DateTimePicker
+                  label="Thời gian bắt đầu"
+                  placeholder="dd/mm/yyyy --:--"
+                  value={formData.startDate}
+                  onChange={(val) => setFormData({ ...formData, startDate: val })}
+                />
+                <DateTimePicker
+                  label="Thời gian kết thúc"
+                  placeholder="dd/mm/yyyy --:--"
+                  value={formData.endDate}
+                  minDate={formData.startDate}
+                  onChange={(val) => setFormData({ ...formData, endDate: val })}
+                />
               </div>
 
               {/* Phạm vi sản phẩm */}

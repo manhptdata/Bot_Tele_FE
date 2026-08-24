@@ -10,6 +10,7 @@ import {
   useUpdateBotConfigMutation,
   useDisconnectBotMutation,
 } from '../api/botConfigApi';
+import { CurrencyInput } from '../components/ui/CurrencyInput';
 import { 
   Save, 
   CreditCard, 
@@ -871,13 +872,24 @@ export const SettingsPage = () => {
                             <option value="FIXED">Cố định (VNĐ)</option>
                             <option value="PERCENT">Phần trăm (%)</option>
                           </select>
-                          <input
-                            type="number"
-                            name="bankFeeAmount"
-                            value={paymentFormData.bankFeeAmount}
-                            onChange={handlePaymentChange}
-                            className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                          />
+                          {paymentFormData.bankFeeType === 'PERCENT' ? (
+                            <input
+                              type="number"
+                              name="bankFeeAmount"
+                              value={paymentFormData.bankFeeAmount}
+                              onChange={handlePaymentChange}
+                              className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                              placeholder="%"
+                            />
+                          ) : (
+                            <CurrencyInput
+                              value={paymentFormData.bankFeeAmount}
+                              onChange={(val) => setPaymentFormData({ ...paymentFormData, bankFeeAmount: Number(val) || 0 })}
+                              className="bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono w-full"
+                              placeholder="VNĐ"
+                              suffix="đ"
+                            />
+                          )}
                         </div>
                       </div>
                     </div>
