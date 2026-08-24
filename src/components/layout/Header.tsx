@@ -1,5 +1,5 @@
 import { useDispatch, useSelector } from 'react-redux';
-import { LogOut, User, Bell, Check, X, ArrowRight, Sparkles } from 'lucide-react';
+import { LogOut, User, Bell, Check, X, ArrowRight, Sparkles, Menu } from 'lucide-react';
 import { logout } from '../../store/authSlice';
 import { RootState } from '../../store/store';
 import { useNavigate } from 'react-router-dom';
@@ -15,7 +15,11 @@ import {
 import { useGetMeQuery } from '../../api/userApi';
 import { baseApi } from '../../api/baseApi';
 
-export const Header = () => {
+interface HeaderProps {
+  onMenuClick?: () => void;
+}
+
+export const Header = ({ onMenuClick }: HeaderProps) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, token } = useSelector((state: RootState) => state.auth);
@@ -142,11 +146,18 @@ export const Header = () => {
   };
 
   return (
-    <header className="h-16 glass border-b flex items-center justify-between px-6 sticky top-0 z-40 w-full">
-      <div className="flex-1">
-        {/* Placeholder */}
+    <header className="h-16 glass border-b flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 w-full">
+      <div className="flex items-center gap-4 flex-1">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="p-2 -ml-2 text-gray-400 hover:text-white lg:hidden rounded-lg hover:bg-slate-800 transition-colors"
+          title="Mở menu"
+        >
+          <Menu size={24} />
+        </button>
       </div>
-      <div className="flex items-center space-x-6">
+      <div className="flex items-center space-x-3 sm:space-x-6">
         
         {/* Notification Bell with Callout Arrow */}
         <div className="relative" ref={dropdownRef}>
@@ -168,7 +179,7 @@ export const Header = () => {
 
           {/* 1. CALLOUT POPUP REALTIME KHI CÓ ĐƠN HÀNG / NẠP TIỀN MỚI (CÓ MŨI TÊN TRỎ TỪ CHUÔNG) */}
           {realtimeAlert && (
-            <div className="absolute right-0 top-full mt-3 w-80 sm:w-96 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
+            <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] max-w-sm sm:w-96 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
               {/* Mũi tên tam giác trỏ thẳng lên chuông */}
               <div className="absolute -top-2 right-3.5 w-4 h-4 bg-slate-900 border-t-2 border-l-2 border-blue-500 rotate-45 z-10" />
 
@@ -219,7 +230,7 @@ export const Header = () => {
 
           {/* 2. MENU DROPDOWN DANH SÁCH THÔNG BÁO (KHI BẤM CHUÔNG) CŨNG CÓ MŨI TÊN TRỎ LÊN */}
           {showDropdown && (
-            <div className="absolute right-0 top-full mt-3 w-84 sm:w-96 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+            <div className="absolute right-0 top-full mt-3 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
               {/* Mũi tên tam giác trỏ lên chuông */}
               <div className="absolute -top-2 right-3.5 w-4 h-4 bg-slate-900 border-t border-l border-slate-700 rotate-45 z-10" />
 
@@ -265,9 +276,9 @@ export const Header = () => {
           )}
         </div>
 
-        <div className="flex items-center space-x-2 text-sm text-gray-300 border-l border-slate-700 pl-6">
+        <div className="flex items-center space-x-2 text-sm text-gray-300 border-l border-slate-700 pl-3 sm:pl-6">
           <User size={18} className="text-gray-400" />
-          <span>{currentUser?.fullName || currentUser?.username || 'Admin'}</span>
+          <span className="hidden sm:inline">{currentUser?.fullName || currentUser?.username || 'Admin'}</span>
           <button
             onClick={handleLogout}
             className="ml-2 p-2 text-gray-400 hover:text-red-400 transition-colors rounded-full hover:bg-gray-800/50"

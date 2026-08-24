@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
-import { Bot, CheckCircle2, Circle, CreditCard, PackagePlus, ArrowRight, Sparkles } from 'lucide-react';
+import { Bot, CheckCircle2, Circle, CreditCard, KeyRound, ArrowRight, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useGetSetupStatusQuery } from '../../api/botConfigApi';
+import { useGetMeQuery } from '../../api/userApi';
 import { ConnectBotModal } from '../bot/ConnectBotModal';
 
 export const SetupWizard: React.FC = () => {
   const { data: status, isLoading } = useGetSetupStatusQuery();
+  const { data: meData, isLoading: isMeLoading } = useGetMeQuery();
   const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
 
-  if (isLoading || !status) return null;
+  if (isLoading || isMeLoading || !status) return null;
+
+  const isTelegramIdSet = Boolean(meData?.telegramChatId && meData.telegramChatId.trim() !== '');
 
   // Nếu cả 3 bước đều hoàn thành -> không cần hiển thị wizard
-  if (status.botConnected && status.productsCreated && status.paymentConfigured) {
+  if (status.botConnected && status.paymentConfigured && isTelegramIdSet) {
     return null;
   }
 
@@ -54,21 +58,21 @@ export const SetupWizard: React.FC = () => {
     },
     {
       id: 3,
-      title: 'Tạo Sản Phẩm & Nạp Kho',
-      description: status.productsCreated
-        ? 'Đã có sản phẩm sẵn sàng bán'
-        : 'Tạo danh mục sản phẩm và nạp danh sách tài khoản cần bán vào kho',
-      completed: status.productsCreated,
-      action: !status.productsCreated ? (
+      title: 'Điền Telegram Chat ID',
+      description: isTelegramIdSet
+        ? `Đã liên kết ID: ${meData?.telegramChatId} (Bảo mật OTP)`
+        : 'Điền Telegram Chat ID của bạn để nhận mã OTP lấy lại mật khẩu khi quên',
+      completed: isTelegramIdSet,
+      action: !isTelegramIdSet ? (
         <Link
-          to="/products"
+          to="/profile"
           className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold flex items-center gap-1 border border-slate-700 transition-all"
         >
-          <span>Thêm sản phẩm</span>
+          <span>Điền Chat ID</span>
           <ArrowRight size={13} />
         </Link>
       ) : null,
-      icon: PackagePlus,
+      icon: KeyRound,
     },
   ];
 

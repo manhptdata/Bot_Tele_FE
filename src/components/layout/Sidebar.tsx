@@ -19,7 +19,13 @@ import {
   ChevronRight,
   ClipboardList,
   Ticket,
+  X,
 } from 'lucide-react';
+
+interface SidebarProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+}
 
 interface SubNavItem {
   path: string;
@@ -56,7 +62,7 @@ const navItems: NavItem[] = [
   { path: '/profile', label: 'Hồ sơ cá nhân', icon: UserCircle },
 ];
 
-export const Sidebar = () => {
+export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const location = useLocation();
   const authUser = useSelector((state: RootState) => state.auth.user);
   const { data: meData } = useGetMeQuery();
@@ -76,11 +82,23 @@ export const Sidebar = () => {
   }, [isOrderPathActive]);
 
   return (
-    <aside className="w-64 h-screen glass border-r flex flex-col fixed left-0 top-0 z-40">
-      <div className="p-6 border-b border-[var(--border-color)]">
+    <aside
+      className={`w-64 h-screen glass border-r flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 lg:translate-x-0 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
+    >
+      <div className="p-6 border-b border-[var(--border-color)] flex justify-between items-center">
         <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
           BotShop Admin
         </h1>
+        <button
+          type="button"
+          onClick={() => onClose?.()}
+          className="lg:hidden p-1 text-gray-400 hover:text-white rounded-md hover:bg-slate-800 transition-colors"
+          title="Đóng menu"
+        >
+          <X size={20} />
+        </button>
       </div>
       <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
         {navItems.map((item) => {
@@ -126,6 +144,7 @@ export const Sidebar = () => {
                         <Link
                           key={child.path}
                           to={child.path}
+                          onClick={() => onClose?.()}
                           className={`flex items-center space-x-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${isChildActive
                             ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 font-semibold'
                             : 'text-gray-400 hover:bg-gray-800/60 hover:text-gray-200'
@@ -148,6 +167,7 @@ export const Sidebar = () => {
             <Link
               key={item.path}
               to={item.path!}
+              onClick={() => onClose?.()}
               className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${isActive
                 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30 font-semibold'
                 : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
