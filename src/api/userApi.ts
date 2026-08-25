@@ -8,12 +8,24 @@ export interface User {
   email: string;
   role: 'ADMIN' | 'STAFF';
   isActive: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
   telegramChatId?: string;
   phoneNumber?: string;
   zalo?: string;
   telegramUsername?: string;
   isSupportContact?: boolean;
   createdAt: string;
+}
+
+export interface DeleteUserRequest {
+  adminPassword: string;
+}
+
+export interface UserQueryParams {
+  status?: 'ALL' | 'ACTIVE' | 'LOCKED' | 'TRASH';
+  page?: number;
+  size?: number;
 }
 
 export interface UserCreateRequest {
@@ -66,11 +78,15 @@ export const userApi = baseApi.injectEndpoints({
       query: () => '/users/me',
       providesTags: ['User'],
     }),
-    getUsers: builder.query<PageResponse<User>, { page: number; size: number }>({
-      query: (params) => ({
-        url: '/users',
-        params,
-      }),
+    getUsers: builder.query<PageResponse<User>, UserQueryParams | void>({
+      query: (params) => {
+        if (!params) return '/users';
+        const searchParams = new URLSearchParams();
+        if (params.status) searchParams.append('status', params.status);
+        if (params.page !== undefined) searchParams.append('page', params.page.toString());
+        if (params.size !== undefined) searchParams.append('size', params.size.toString());
+        return `/users?${searchParams.toString()}`;
+      },
       providesTags: ['User'],
     }),
     createUser: builder.mutation<User, UserCreateRequest>({
@@ -104,10 +120,27 @@ export const userApi = baseApi.injectEndpoints({
         body: data,
       }),
     }),
-    deleteUser: builder.mutation<void, number>({
-      query: (id) => ({
+    deleteUser: builder.mutation<void, { id: number; data: DeleteUserRequest }>({
+      query: ({ id, data }) => ({
         url: `/users/${id}`,
         method: 'DELETE',
+        body: data,
+      }),
+      invalidatesTags: ['User'],
+    }),
+    restoreUser: builder.mutation<User, { id: number; data: DeleteUserRequest }>({
+      query: ({ id, data }) => ({
+        url: `/users/${id}/restore`,
+        method: 'PATCH',
+        body: data,
+      }),
+      invalidatesTags: ['User'],
+    }),
+    hardDeleteUser: builder.mutation<void, { id: number; data: DeleteUserRequest }>({
+      query: ({ id, data }) => ({
+        url: `/users/${id}/hard-delete`,
+        method: 'DELETE',
+        body: data,
       }),
       invalidatesTags: ['User'],
     }),
@@ -122,4 +155,6 @@ export const {
   useUpdateMeMutation,
   useChangePasswordMutation,
   useDeleteUserMutation,
+  useRestoreUserMutation,
+  useHardDeleteUserMutation,
 } = userApi;

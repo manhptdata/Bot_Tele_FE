@@ -15,6 +15,8 @@ import {
   ShieldAlert,
   TrendingUp,
   Filter,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
@@ -22,6 +24,9 @@ import {
   useCreateVoucherMutation,
   useUpdateVoucherMutation,
   useToggleVoucherMutation,
+  useDeleteVoucherMutation,
+  useRestoreVoucherMutation,
+  useHardDeleteVoucherMutation,
   Voucher,
   VoucherCreateRequest,
 } from '../api/voucherApi';
@@ -35,14 +40,14 @@ import { useDebounce } from '../hooks/useDebounce';
 export const VouchersPage = () => {
   const [page, setPage] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<string>('ALL');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE' | 'TRASH'>('ALL');
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   const { data: voucherPage, isLoading } = useGetVouchersQuery({
     page,
     size: 10,
     keyword: debouncedSearchTerm || undefined,
-    isActive: activeFilter === 'ALL' ? undefined : activeFilter === 'ACTIVE',
+    status: activeFilter,
   });
 
   const { data: productPage } = useGetProductsQuery({ size: 100 });
@@ -54,6 +59,9 @@ export const VouchersPage = () => {
   const [createVoucher, { isLoading: isCreating }] = useCreateVoucherMutation();
   const [updateVoucher, { isLoading: isUpdating }] = useUpdateVoucherMutation();
   const [toggleVoucher] = useToggleVoucherMutation();
+  const [deleteVoucher] = useDeleteVoucherMutation();
+  const [restoreVoucher] = useRestoreVoucherMutation();
+  const [hardDeleteVoucher] = useHardDeleteVoucherMutation();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null);
@@ -201,7 +209,43 @@ export const VouchersPage = () => {
       await toggleVoucher(id).unwrap();
       toast.success('Đã cập nhật trạng thái');
     } catch (err: any) {
-      toast.error('Lỗi khi đổi trạng thái');
+      toast.error(err?.data?.message || 'Lỗi khi đổi trạng thái');
+    }
+  };
+
+  const handleMoveToTrash = async (id: number, code: string) => {
+    if (!window.confirm(`Bạn có chắc muốn chuyển mã giảm giá "${code}" vào Thùng rác không?`)) {
+      return;
+    }
+    try {
+      await deleteVoucher(id).unwrap();
+      toast.success(`Đã chuyển mã "${code}" vào Thùng rác`);
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Lỗi khi chuyển vào thùng rác');
+    }
+  };
+
+  const handleRestore = async (id: number, code: string) => {
+    if (!window.confirm(`Khôi phục mã giảm giá "${code}" về danh sách hoạt động?`)) {
+      return;
+    }
+    try {
+      await restoreVoucher(id).unwrap();
+      toast.success(`Đã khôi phục mã "${code}" thành công`);
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Lỗi khi khôi phục voucher');
+    }
+  };
+
+  const handleHardDelete = async (id: number, code: string) => {
+    if (!window.confirm(`⚠️ CẢNH BÁO NGUY HIỂM:\nBạn có chắc muốn XÓA VĨNH VIỄN mã "${code}" khỏi Database không?\nThao tác này KHÔNG THỂ khôi phục!`)) {
+      return;
+    }
+    try {
+      await hardDeleteVoucher(id).unwrap();
+      toast.success(`Đã xóa vĩnh viễn mã "${code}" khỏi hệ thống`);
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Không thể xóa vĩnh viễn voucher này');
     }
   };
 
@@ -363,6 +407,20 @@ export const VouchersPage = () => {
             >
               Đang tắt
             </button>
+            <button
+              onClick={() => {
+                setActiveFilter('TRASH');
+                setPage(0);
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                activeFilter === 'TRASH'
+                  ? 'bg-amber-600 text-white shadow-sm font-semibold'
+                  : 'text-amber-400/80 hover:text-amber-300'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Thùng rác</span>
+            </button>
           </div>
         </div>
       </div>
@@ -503,26 +561,62 @@ export const VouchersPage = () => {
                         </div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          onClick={() => handleToggle(v.id)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                            v.isActive
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
-                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'
-                          }`}
-                        >
-                          {v.isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                          {v.isActive ? 'Đang bật' : 'Đang tắt'}
-                        </button>
+                        {activeFilter === 'TRASH' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                            <Trash2 className="w-3.5 h-3.5" /> Đã xóa
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleToggle(v.id)}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+                              v.isActive
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'
+                            }`}
+                          >
+                            {v.isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                            {v.isActive ? 'Đang bật' : 'Đang tắt'}
+                          </button>
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <button
-                          onClick={() => handleOpenModal(v)}
-                          className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
-                          title="Chỉnh sửa"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {activeFilter === 'TRASH' ? (
+                            <>
+                              <button
+                                onClick={() => handleRestore(v.id, v.code)}
+                                className="p-2 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                title="Khôi phục voucher"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleHardDelete(v.id, v.code)}
+                                className="p-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                title="Xóa vĩnh viễn khỏi Database"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleOpenModal(v)}
+                                className="p-2 text-slate-400 hover:text-white hover:bg-slate-700/50 rounded-lg transition-colors"
+                                title="Chỉnh sửa"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleMoveToTrash(v.id, v.code)}
+                                className="p-2 text-rose-400/70 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                title="Chuyển vào Thùng rác"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

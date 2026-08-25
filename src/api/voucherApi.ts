@@ -17,6 +17,8 @@ export interface Voucher {
   startDate?: string;
   endDate?: string;
   isActive: boolean;
+  isDeleted?: boolean;
+  deletedAt?: string;
   createdAt: string;
   productIds: number[];
   customerIds: number[];
@@ -41,7 +43,7 @@ export interface VoucherCreateRequest {
 
 export interface VoucherUpdateRequest {
   description?: string;
-  discountType?: 'PERCENT' | 'FIXED';
+  discountType: 'PERCENT' | 'FIXED';
   discountValue?: number;
   maxDiscountAmount?: number | null;
   minOrderAmount?: number;
@@ -57,7 +59,7 @@ export interface VoucherUpdateRequest {
 
 export interface VoucherQueryParams {
   keyword?: string;
-  isActive?: boolean;
+  status?: 'ALL' | 'ACTIVE' | 'INACTIVE' | 'TRASH';
   page?: number;
   size?: number;
 }
@@ -69,7 +71,7 @@ export const voucherApi = baseApi.injectEndpoints({
         if (!params) return '/admin/vouchers';
         const searchParams = new URLSearchParams();
         if (params.keyword) searchParams.append('keyword', params.keyword);
-        if (params.isActive !== undefined) searchParams.append('isActive', String(params.isActive));
+        if (params.status) searchParams.append('status', params.status);
         if (params.page !== undefined) searchParams.append('page', params.page.toString());
         if (params.size !== undefined) searchParams.append('size', params.size.toString());
         return `/admin/vouchers?${searchParams.toString()}`;
@@ -103,6 +105,27 @@ export const voucherApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Voucher'],
     }),
+    deleteVoucher: builder.mutation<void, number>({
+      query: (id) => ({
+        url: `/admin/vouchers/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Voucher'],
+    }),
+    restoreVoucher: builder.mutation<Voucher, number>({
+      query: (id) => ({
+        url: `/admin/vouchers/${id}/restore`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['Voucher'],
+    }),
+    hardDeleteVoucher: builder.mutation<void, number>({
+      query: (id) => ({
+        url: `/admin/vouchers/${id}/hard-delete`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Voucher'],
+    }),
   }),
 });
 
@@ -112,4 +135,7 @@ export const {
   useCreateVoucherMutation,
   useUpdateVoucherMutation,
   useToggleVoucherMutation,
+  useDeleteVoucherMutation,
+  useRestoreVoucherMutation,
+  useHardDeleteVoucherMutation,
 } = voucherApi;
