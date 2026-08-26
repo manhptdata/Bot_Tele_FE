@@ -44,6 +44,19 @@ export interface DashboardAnalyticsResponse {
   paymentStats: PaymentMethodStat[];
 }
 
+export interface ProductAnalyticsResponse {
+  productId: number;
+  productName: string;
+  productSlug: string;
+  imageUrl: string | null;
+  price: number;
+  currentStock: number;
+  totalQuantitySold: number;
+  totalRevenue: number;
+  totalOrders: number;
+  timeline: TimelinePoint[];
+}
+
 export const dashboardApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getDashboardStats: builder.query<DashboardStats, void>({
@@ -57,7 +70,24 @@ export const dashboardApi = baseApi.injectEndpoints({
       },
       providesTags: ['Dashboard', 'Order', 'Customer'],
     }),
+    getProductAnalytics: builder.query<
+      ProductAnalyticsResponse,
+      { productId: number; start?: string; end?: string }
+    >({
+      query: ({ productId, start, end }) => {
+        let url = `/admin/dashboard/product-analytics?productId=${productId}`;
+        if (start && end) {
+          url += `&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+        }
+        return url;
+      },
+      providesTags: ['Dashboard', 'Order', 'Product', 'Account'],
+    }),
   }),
 });
 
-export const { useGetDashboardStatsQuery, useGetDashboardAnalyticsQuery } = dashboardApi;
+export const {
+  useGetDashboardStatsQuery,
+  useGetDashboardAnalyticsQuery,
+  useGetProductAnalyticsQuery,
+} = dashboardApi;

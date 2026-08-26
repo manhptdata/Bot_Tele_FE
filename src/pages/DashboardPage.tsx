@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
-import { useGetDashboardAnalyticsQuery } from '../api/dashboardApi';
+import { useGetDashboardAnalyticsQuery, useGetProductAnalyticsQuery } from '../api/dashboardApi';
+import { useGetProductsQuery } from '../api/productApi';
 import { useGetAllWalletsQuery } from '../api/walletApi';
 import { useGetOrdersQuery } from '../api/orderApi';
 import { SetupWizard } from '../components/dashboard/SetupWizard';
@@ -20,6 +21,9 @@ import {
   Search,
   X,
   AlertCircle,
+  ShoppingBag,
+  Boxes,
+  BarChart3,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -229,6 +233,40 @@ export const DashboardPage = () => {
     });
   };
 
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [productSearchInput, setProductSearchInput] = useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [productChartMetric, setProductChartMetric] = useState<'REVENUE' | 'QUANTITY'>('REVENUE');
+
+  const { data: productsData } = useGetProductsQuery({ size: 1000 });
+  const allProducts = productsData?.content || [];
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearchInput.trim()) return allProducts.slice(0, 30);
+    const term = productSearchInput.trim().toLowerCase().replace(/^#/, '');
+    return allProducts
+      .filter((p) => {
+        const idMatch = String(p.id).includes(term);
+        const nameMatch = p.name.toLowerCase().includes(term);
+        const slugMatch = (p.slug || '').toLowerCase().includes(term);
+        return idMatch || nameMatch || slugMatch;
+      })
+      .slice(0, 30);
+  }, [allProducts, productSearchInput]);
+
+  const {
+    data: productAnalytics,
+    isLoading: isProductAnalyticsLoading,
+    isError: isProductAnalyticsError,
+  } = useGetProductAnalyticsQuery(
+    {
+      productId: selectedProductId!,
+      start: queryRange.start,
+      end: queryRange.end,
+    },
+    { skip: !selectedProductId }
+  );
+
   const { data: analytics, isLoading: isAnalyticsLoading, isError: isAnalyticsError } = useGetDashboardAnalyticsQuery({
     start: queryRange.start,
     end: queryRange.end,
@@ -293,11 +331,10 @@ export const DashboardPage = () => {
                 <button
                   key={item.id}
                   onClick={() => setPreset(item.id)}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                    preset === item.id
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${preset === item.id
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-                  }`}
+                    }`}
                 >
                   {item.label}
                 </button>
@@ -358,11 +395,10 @@ export const DashboardPage = () => {
               <button
                 onClick={handleApplyCustomRange}
                 disabled={!validationStatus.valid}
-                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg ${
-                  validationStatus.valid
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-lg ${validationStatus.valid
                     ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer active:scale-95'
                     : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 <Search size={14} />
                 Áp Dụng Lọc
@@ -448,29 +484,27 @@ export const DashboardPage = () => {
               {preset === 'TODAY' || preset === 'YESTERDAY'
                 ? 'Dữ liệu phân bổ chi tiết theo 24 khung giờ'
                 : analytics?.timeline && analytics.timeline.length <= 90
-                ? 'Dữ liệu phân bổ chi tiết theo từng ngày'
-                : 'Dữ liệu được tự động tổng hợp theo từng tháng'}
+                  ? 'Dữ liệu phân bổ chi tiết theo từng ngày'
+                  : 'Dữ liệu được tự động tổng hợp theo từng tháng'}
             </p>
           </div>
 
           <div className="bg-slate-950 p-1 rounded-xl border border-slate-800 flex gap-1 self-start sm:self-auto">
             <button
               onClick={() => setChartMetric('REVENUE')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                chartMetric === 'REVENUE'
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${chartMetric === 'REVENUE'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
-              }`}
+                }`}
             >
               Doanh thu (VND)
             </button>
             <button
               onClick={() => setChartMetric('ORDERS')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                chartMetric === 'ORDERS'
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${chartMetric === 'ORDERS'
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
-              }`}
+                }`}
             >
               Số đơn hàng
             </button>
@@ -526,6 +560,300 @@ export const DashboardPage = () => {
         </div>
       </div>
 
+      {/* Product Specific Analytics Section */}
+      <div className="glass p-6 rounded-2xl border border-slate-800 shadow-xl space-y-5">
+        {/* Header & Product Search Selector */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-5">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <ShoppingBag size={20} className="text-emerald-400" />
+              Tra Cứu & Phân Tích Doanh Số Theo Sản Phẩm
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Chọn một sản phẩm bất kỳ để xem lượng bán, doanh thu, tồn kho và biểu đồ tiêu thụ trong kỳ đang lọc
+            </p>
+          </div>
+
+          {/* Smart Search Dropdown */}
+          <div className="relative w-full lg:w-96">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                value={productSearchInput}
+                onFocus={() => setIsDropdownOpen(true)}
+                onChange={(e) => {
+                  setProductSearchInput(e.target.value);
+                  setIsDropdownOpen(true);
+                }}
+                placeholder="Tìm sản phẩm theo Tên, #ID, hoặc Slug..."
+                className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/50 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-slate-500 transition-all outline-none"
+              />
+              {(productSearchInput || selectedProductId) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProductSearchInput('');
+                    setSelectedProductId(null);
+                    setIsDropdownOpen(false);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 rounded-md"
+                  title="Xóa lựa chọn"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown Menu */}
+            {isDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsDropdownOpen(false)}
+                />
+                <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in-50 zoom-in-95 duration-200">
+                  {filteredProducts.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-400">
+                      Không tìm thấy sản phẩm nào khớp với từ khóa
+                    </div>
+                  ) : (
+                    filteredProducts.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedProductId(p.id);
+                          setProductSearchInput(p.name);
+                          setIsDropdownOpen(false);
+                        }}
+                        className={`w-full text-left p-3 hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-3 ${selectedProductId === p.id ? 'bg-emerald-500/10 border-l-4 border-emerald-500' : ''
+                          }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {p.imageUrl ? (
+                            <img src={p.imageUrl} alt={p.name} className="w-8 h-8 rounded-lg object-cover bg-slate-950 border border-slate-700 shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 shrink-0">
+                              <Package size={14} />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{p.name}</p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                              <span className="font-mono text-emerald-400">#{p.id}</span>
+                              <span>•</span>
+                              <span className="truncate">{p.slug}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold text-emerald-400 font-mono">
+                            {Number(p.price || 0).toLocaleString()}đ
+                          </p>
+                          <span className={`text-[10px] font-medium ${p.stockCount > 0 ? 'text-slate-400' : 'text-rose-400'}`}>
+                            Kho: {p.stockCount ?? 0}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Content Area */}
+        {!selectedProductId ? (
+          <div className="py-10 px-4 rounded-xl border border-dashed border-slate-800 bg-slate-950/40 text-center flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <Search size={22} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Chưa chọn sản phẩm nào để phân tích</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-md">
+                Gõ tên, mã #ID hoặc mã rút gọn (slug) vào thanh tìm kiếm ở trên để xem chi tiết lượng tiêu thụ và doanh thu của sản phẩm đó.
+              </p>
+            </div>
+          </div>
+        ) : isProductAnalyticsLoading ? (
+          <div className="py-14 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+            <span className="text-xs">Đang tổng hợp dữ liệu sản phẩm...</span>
+          </div>
+        ) : isProductAnalyticsError ? (
+          <div className="p-5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
+            <AlertCircle size={16} /> Không thể tải dữ liệu phân tích sản phẩm này.
+          </div>
+        ) : productAnalytics ? (
+          <div className="space-y-5">
+            {/* Selected Product Summary Bar */}
+            <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                {productAnalytics.imageUrl ? (
+                  <img
+                    src={productAnalytics.imageUrl}
+                    alt={productAnalytics.productName}
+                    className="w-12 h-12 rounded-xl object-cover border border-slate-700 bg-slate-900 shadow-md shrink-0"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-700 flex items-center justify-center text-emerald-400 shrink-0">
+                    <ShoppingBag size={22} />
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      ID #{productAnalytics.productId}
+                    </span>
+                    <h3 className="text-sm font-extrabold text-white">{productAnalytics.productName}</h3>
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">
+                    Mã rút gọn: <span className="text-slate-300">{productAnalytics.productSlug}</span> • Đơn giá:{' '}
+                    <span className="text-emerald-400 font-bold">{Number(productAnalytics.price || 0).toLocaleString()}đ</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Chart Metric Switcher */}
+              <div className="bg-slate-900 p-1 rounded-xl border border-slate-800 flex gap-1 self-start sm:self-auto shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setProductChartMetric('REVENUE')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${productChartMetric === 'REVENUE'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                  Doanh thu (VND)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductChartMetric('QUANTITY')}
+                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${productChartMetric === 'QUANTITY'
+                      ? 'bg-emerald-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                  Số lượng bán (Acc)
+                </button>
+              </div>
+            </div>
+
+            {/* 4 Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+                  <span>Đã bán trong kỳ</span>
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                    <Boxes size={15} />
+                  </div>
+                </div>
+                <div className="text-xl font-bold text-white font-mono mt-1">
+                  {(productAnalytics.totalQuantitySold ?? 0).toLocaleString()}{' '}
+                  <span className="text-xs text-slate-400 font-sans font-normal">tài khoản</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Tổng tài khoản/dịch vụ đã bán thành công</p>
+              </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+                  <span>Doanh thu sản phẩm</span>
+                  <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+                    <DollarSign size={15} />
+                  </div>
+                </div>
+                <div className="text-xl font-bold text-emerald-400 font-mono mt-1">
+                  {Number(productAnalytics.totalRevenue || 0).toLocaleString()}đ
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Tổng doanh thu từ sản phẩm trong kỳ</p>
+              </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+                  <span>Tồn kho hiện tại</span>
+                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
+                    <Package size={15} />
+                  </div>
+                </div>
+                <div className="text-xl font-bold text-white font-mono mt-1">
+                  {(productAnalytics.currentStock ?? 0).toLocaleString()}{' '}
+                  <span className="text-xs text-slate-400 font-sans font-normal">acc sẵn sàng</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Tài khoản còn trong kho chưa bán</p>
+              </div>
+
+              <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
+                <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
+                  <span>Số đơn thành công</span>
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+                    <ShoppingCart size={15} />
+                  </div>
+                </div>
+                <div className="text-xl font-bold text-white font-mono mt-1">
+                  {(productAnalytics.totalOrders ?? 0).toLocaleString()}{' '}
+                  <span className="text-xs text-slate-400 font-sans font-normal">đơn</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2">Số đơn hàng có chứa sản phẩm này</p>
+              </div>
+            </div>
+
+            {/* Product Timeline Chart */}
+            <div className="bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <BarChart3 size={14} className="text-emerald-400" />
+                  Biểu Đồ Tiêu Thụ Riêng Biệt Theo Kỳ
+                </div>
+                <span className="text-[11px] text-slate-500 font-mono">
+                  {preset === 'TODAY' || preset === 'YESTERDAY' ? 'Theo 24 giờ' : 'Theo mốc thời gian đã chọn'}
+                </span>
+              </div>
+              <div className="h-64 w-full">
+                {!productAnalytics.timeline || productAnalytics.timeline.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-slate-500 text-xs">
+                    Chưa có dữ liệu trong khoảng thời gian này
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    {productChartMetric === 'REVENUE' ? (
+                      <AreaChart data={productAnalytics.timeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="productRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="time" stroke="#64748b" fontSize={11} />
+                        <YAxis stroke="#64748b" fontSize={11} tickFormatter={(val) => `${val >= 1000000 ? `${(val / 1000000).toFixed(1)}M` : `${val / 1000}k`}`} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#090d16', borderColor: '#1e293b', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
+                          formatter={(value: number) => [`${value.toLocaleString()}đ`, 'Doanh thu']}
+                        />
+                        <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#productRevenueGradient)" />
+                      </AreaChart>
+                    ) : (
+                      <BarChart data={productAnalytics.timeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="time" stroke="#64748b" fontSize={11} />
+                        <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#090d16', borderColor: '#1e293b', borderRadius: '12px', color: '#fff', fontSize: '12px' }}
+                          formatter={(value: number) => [`${value} acc`, 'Số lượng bán']}
+                        />
+                        <Bar dataKey="orderCount" fill="#10b981" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
       {/* 2 Widget Phân Tích: Top Sản Phẩm & Cơ Cấu Thanh Toán */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Top 5 Sản phẩm bán chạy */}
@@ -548,15 +876,14 @@ export const DashboardPage = () => {
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2.5">
                           <span
-                            className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center ${
-                              idx === 0
+                            className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center ${idx === 0
                                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                                 : idx === 1
-                                ? 'bg-slate-400/20 text-slate-300 border border-slate-400/30'
-                                : idx === 2
-                                ? 'bg-amber-800/20 text-amber-600 border border-amber-800/30'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
+                                  ? 'bg-slate-400/20 text-slate-300 border border-slate-400/30'
+                                  : idx === 2
+                                    ? 'bg-amber-800/20 text-amber-600 border border-amber-800/30'
+                                    : 'bg-slate-800 text-slate-400'
+                              }`}
                           >
                             #{idx + 1}
                           </span>
@@ -665,13 +992,12 @@ export const DashboardPage = () => {
                   {Number(order.totalAmount || 0).toLocaleString()}đ
                 </p>
                 <span
-                  className={`inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-semibold ${
-                    order.status === 'COMPLETED'
+                  className={`inline-block mt-1 px-2 py-0.5 rounded text-[11px] font-semibold ${order.status === 'COMPLETED'
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                       : order.status === 'PENDING'
-                      ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                      : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                  }`}
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                    }`}
                 >
                   {order.status}
                 </span>
