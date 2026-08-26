@@ -25,7 +25,7 @@ export const accountApi = baseApi.injectEndpoints({
       },
       providesTags: ['Account'],
     }),
-    addBulkAccounts: builder.mutation<any, { productId: number; accountDataList: string[][]; notifyCustomers?: boolean }>({
+    addBulkAccounts: builder.mutation<any, { productId: number; accountDataList: string[][]; notifyCustomers?: boolean; customMessage?: string }>({
       query: (body) => ({
         url: '/accounts/bulk',
         method: 'POST',
@@ -33,13 +33,14 @@ export const accountApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Account', 'Product'],
     }),
-    importExcel: builder.mutation<any, { productId: number; file: File; notifyCustomers?: boolean }>({
-      query: ({ productId, file, notifyCustomers }) => {
+    importExcel: builder.mutation<any, { productId: number; file: File; notifyCustomers?: boolean; customMessage?: string }>({
+      query: ({ productId, file, notifyCustomers, customMessage }) => {
         const formData = new FormData();
         formData.append('file', file);
         const notifyParam = notifyCustomers ? '&notifyCustomers=true' : '';
+        const messageParam = customMessage ? `&customMessage=${encodeURIComponent(customMessage)}` : '';
         return {
-          url: `/accounts/import/excel?productId=${productId}${notifyParam}`,
+          url: `/accounts/import/excel?productId=${productId}${notifyParam}${messageParam}`,
           method: 'POST',
           body: formData,
         };

@@ -51,6 +51,7 @@ export const AccountsPage = () => {
   const [bulkText, setBulkText] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [notifyCustomers, setNotifyCustomers] = useState(false);
+  const [customNotificationMessage, setCustomNotificationMessage] = useState('');
   
   const [viewAccount, setViewAccount] = useState<any | null>(null);
 
@@ -125,6 +126,8 @@ export const AccountsPage = () => {
       toast.error('Vui lòng chọn sản phẩm');
       return;
     }
+
+    const customMsgParam = customNotificationMessage.trim() || undefined;
     
     if (importMode === 'EXCEL') {
       if (!file) {
@@ -132,7 +135,12 @@ export const AccountsPage = () => {
         return;
       }
       try {
-        const res = await importExcel({ productId: Number(selectedProductId), file, notifyCustomers }).unwrap();
+        const res = await importExcel({ 
+          productId: Number(selectedProductId), 
+          file, 
+          notifyCustomers,
+          customMessage: customMsgParam
+        }).unwrap();
         toast.success(`Đã nạp thành công ${res.successCount} account` + (notifyCustomers ? ' (Đang gửi thông báo Telegram cho khách)' : ''));
         setFile(null);
         setActiveTab('LIST');
@@ -152,7 +160,8 @@ export const AccountsPage = () => {
         await addBulkAccounts({ 
           productId: Number(selectedProductId), 
           accountDataList,
-          notifyCustomers
+          notifyCustomers,
+          customMessage: customMsgParam
         }).unwrap();
         toast.success(`Đã nạp ${accountDataList.length} account thành công` + (notifyCustomers ? ' (Đang gửi thông báo Telegram cho khách)' : ''));
         setBulkText('');
@@ -168,7 +177,8 @@ export const AccountsPage = () => {
         await addBulkAccounts({ 
           productId: Number(selectedProductId), 
           accountDataList: [manualData],
-          notifyCustomers
+          notifyCustomers,
+          customMessage: customMsgParam
         }).unwrap();
         toast.success('Đã thêm 1 account thành công' + (notifyCustomers ? ' (Đang gửi thông báo Telegram cho khách)' : ''));
         setManualData(new Array(accountFormatFields.length).fill(''));
@@ -580,22 +590,72 @@ export const AccountsPage = () => {
             )}
 
             {selectedProductId && (
-              <div className="p-4 rounded-xl bg-gradient-to-r from-blue-950/40 via-slate-900/60 to-purple-950/40 border border-blue-500/30 flex items-start gap-3 transition-all">
-                <input
-                  type="checkbox"
-                  id="notifyCustomersCheck"
-                  checked={notifyCustomers}
-                  onChange={(e) => setNotifyCustomers(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-slate-700 cursor-pointer shrink-0"
-                />
-                <label htmlFor="notifyCustomersCheck" className="cursor-pointer space-y-0.5 select-none">
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <span>📢 Gửi thông báo Telegram cho toàn bộ khách hàng về đợt hàng mới này</span>
+              <div className="space-y-3">
+                <div className="p-4 rounded-xl bg-gradient-to-r from-blue-950/40 via-slate-900/60 to-purple-950/40 border border-blue-500/30 flex items-start gap-3 transition-all">
+                  <input
+                    type="checkbox"
+                    id="notifyCustomersCheck"
+                    checked={notifyCustomers}
+                    onChange={(e) => setNotifyCustomers(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 bg-slate-800 border-slate-700 cursor-pointer shrink-0"
+                  />
+                  <label htmlFor="notifyCustomersCheck" className="cursor-pointer space-y-0.5 select-none">
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>📢 Gửi thông báo Telegram cho toàn bộ khách hàng về đợt hàng mới này</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Tất cả khách hàng từng nhắn tin với Bot sẽ nhận được tin nhắn thông báo kèm nút <strong>"🛒 Mua ngay"</strong> để đặt mua tức thì.
+                    </p>
+                  </label>
+                </div>
+
+                {notifyCustomers && (
+                  <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                        <span>📝 Tùy chỉnh nội dung thông báo (Để trống nếu muốn dùng mẫu mặc định):</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">Tùy chọn</span>
+                    </div>
+
+                    <textarea
+                      rows={4}
+                      value={customNotificationMessage}
+                      onChange={(e) => setCustomNotificationMessage(e.target.value)}
+                      placeholder={`🔥 *HÀNG MỚI VỀ / VỪA NẠP THÊM KHO!* 🔥\n\n📦 *Sản phẩm:* {product_name}\n💰 *Giá bán:* {price}đ\n✨ *Vừa bổ sung:* +{stock_count} tài khoản\n\n👇 *Bấm nút bên dưới để đặt mua ngay:*`}
+                      className="w-full bg-slate-950/80 border border-slate-700/80 rounded-lg px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono leading-relaxed resize-y"
+                    />
+
+                    {/* Danh sách biến hỗ trợ */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
+                      <span>Bấm chèn biến:</span>
+                      {[
+                        { label: '{product_name}', desc: 'Tên sản phẩm' },
+                        { label: '{price}', desc: 'Giá tiền' },
+                        { label: '{stock_count}', desc: 'Số lượng nạp' },
+                        { label: '{description}', desc: 'Mô tả sản phẩm' },
+                      ].map((tag) => (
+                        <button
+                          key={tag.label}
+                          type="button"
+                          onClick={() => setCustomNotificationMessage((prev) => prev + tag.label)}
+                          className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-blue-300 rounded border border-slate-700 text-[10px] font-mono transition-colors"
+                          title={tag.desc}
+                        >
+                          {tag.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Cảnh báo Markdown */}
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300/90 flex items-start gap-2">
+                      <span className="shrink-0 text-xs">⚠️</span>
+                      <span>
+                        <strong>Lưu ý:</strong> Nếu dùng định dạng Telegram Markdown (ví dụ <code className="text-amber-200">*in đậm*</code> hoặc <code className="text-amber-200">_in nghiêng_</code>), bắt buộc phải có đủ cặp dấu đóng/mở. Nếu gõ sai cú pháp, Telegram sẽ hủy gửi thông báo.
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Tất cả khách hàng từng nhắn tin với Bot sẽ nhận được tin nhắn thông báo kèm nút <strong>"🛒 Mua ngay"</strong> để đặt mua tức thì.
-                  </p>
-                </label>
+                )}
               </div>
             )}
 
