@@ -13,6 +13,18 @@ export const BroadcastPage = () => {
       return;
     }
 
+    if (imageUrl.trim()) {
+      const trimmedUrl = imageUrl.trim();
+      if (trimmedUrl.startsWith('data:image') || trimmedUrl.length > 2000) {
+        toast.error('❌ Lỗi: Bạn đang dán mã Base64! Vui lòng dùng link ảnh thật.');
+        return;
+      }
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        toast.error('❌ Lỗi: Link hình ảnh phải bắt đầu bằng http:// hoặc https://');
+        return;
+      }
+    }
+
     if (window.confirm('CẢNH BÁO: Hành động này sẽ gửi tin nhắn đến TOÀN BỘ khách hàng. Bạn có chắc chắn muốn gửi không?')) {
       try {
         const response = await sendBroadcast({ message, imageUrl }).unwrap();

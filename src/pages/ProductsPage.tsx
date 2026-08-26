@@ -165,6 +165,19 @@ export const ProductsPage = () => {
       toast.error('Tồn kho thủ công phải là số nguyên từ 0 trở lên!');
       return;
     }
+
+    if (formData.imageUrl.trim()) {
+      const trimmedUrl = formData.imageUrl.trim();
+      if (trimmedUrl.startsWith('data:image') || trimmedUrl.length > 2000) {
+        toast.error('❌ Lỗi: Bạn đang dán mã Base64! Vui lòng dùng link ảnh thật.');
+        return;
+      }
+      if (!trimmedUrl.startsWith('http://') && !trimmedUrl.startsWith('https://')) {
+        toast.error('❌ Lỗi: Link hình ảnh phải bắt đầu bằng http:// hoặc https://');
+        return;
+      }
+    }
+
     try {
       const attributesRecord = attributeList.reduce((acc, curr) => {
         if (curr.key.trim() && curr.value.trim()) {
@@ -411,11 +424,10 @@ export const ProductsPage = () => {
                       <button
                         type="button"
                         onClick={(e) => handleCopyCode(e, product.slug)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold border transition-all duration-200 group cursor-pointer ${
-                          copiedSlug === product.slug
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold border transition-all duration-200 group cursor-pointer ${copiedSlug === product.slug
                             ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/50'
                             : 'bg-slate-800/80 text-purple-400 border-slate-700 hover:bg-slate-700/80 hover:border-purple-500/50 hover:text-purple-300'
-                        }`}
+                          }`}
                         title="Bấm chuột trái để sao chép mã Slug"
                       >
                         {copiedSlug === product.slug ? (
@@ -628,6 +640,16 @@ export const ProductsPage = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Mô tả sản phẩm (Tùy chọn)</label>
+                <textarea
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                  placeholder="Gói 4K UHD, dùng được trên 4 thiết bị..."
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Giá bán (VNĐ) (*)</label>
@@ -775,43 +797,55 @@ export const ProductsPage = () => {
                 </label>
               </div>
 
-              {/* Attributes Section */}
+              {/* Hướng dẫn & Lưu ý sau mua */}
               <div className="pt-2 border-t border-slate-700/50">
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Thuộc tính tuỳ chỉnh (Tuỳ chọn)</label>
-                  <button type="button" onClick={handleAddAttribute} className="text-blue-400 hover:text-blue-300 flex items-center text-xs space-x-1">
-                    <PlusCircle size={14} />
-                    <span>Thêm thuộc tính</span>
-                  </button>
+                <div className="mb-2">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Hướng dẫn & Lưu ý cho khách (Gửi kèm khi giao hàng)
+                  </label>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Nội dung này sẽ tự động đính kèm vào tin nhắn giao hàng trên Telegram sau khi khách thanh toán.
+                  </p>
                 </div>
 
                 {attributeList.length === 0 ? (
-                  <div className="text-xs text-slate-500 italic">Chưa có thuộc tính nào. Có thể thêm Bảo hành, Định dạng...</div>
+                  <div className="text-xs text-slate-500 italic bg-slate-900/40 p-2.5 rounded-lg border border-dashed border-slate-700 mb-2">
+                    Chưa có hướng dẫn nào. Bấm nút bên dưới để thêm (VD: "Link đăng nhập": "https://netflix.com", "Lưu ý": "Không đổi mật khẩu").
+                  </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2 mb-2">
                     {attributeList.map((attr, idx) => (
                       <div key={idx} className="flex space-x-2 items-start">
                         <input
                           type="text"
-                          placeholder="Tên (vd: Bảo hành)"
-                          className="flex-1 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Tên mục (vd: Link login, Lưu ý)"
+                          className="w-1/3 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                           value={attr.key}
                           onChange={(e) => handleAttributeChange(idx, 'key', e.target.value)}
                         />
-                        <input
-                          type="text"
-                          placeholder="Giá trị (vd: 1 đổi 1)"
-                          className="flex-1 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        <textarea
+                          rows={2}
+                          placeholder="Nội dung (vd: Link đăng nhập, Bước 1, Bước 2... )"
+                          className="flex-1 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[42px] resize-y"
                           value={attr.value}
                           onChange={(e) => handleAttributeChange(idx, 'value', e.target.value)}
                         />
-                        <button type="button" onClick={() => handleRemoveAttribute(idx)} className="p-1.5 text-slate-400 hover:text-red-400 transition-colors mt-0.5">
+                        <button type="button" onClick={() => handleRemoveAttribute(idx)} className="p-2 text-slate-400 hover:text-red-400 transition-colors mt-0.5 cursor-pointer">
                           <MinusCircle size={16} />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
+
+                <button
+                  type="button"
+                  onClick={handleAddAttribute}
+                  className="w-full py-2 px-3 bg-slate-800/50 hover:bg-slate-800 border border-dashed border-slate-700 hover:border-slate-600 rounded-lg text-blue-400 hover:text-blue-300 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <PlusCircle size={15} />
+                  <span>Thêm mục hướng dẫn</span>
+                </button>
               </div>
 
               <button type="submit" disabled={isCreating} className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 rounded-lg mt-6 shadow-lg disabled:opacity-50">
@@ -853,11 +887,10 @@ export const ProductsPage = () => {
                     <button
                       type="button"
                       onClick={(e) => handleCopyCode(e, viewProductInfo.slug)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-mono font-bold border transition-all cursor-pointer ${
-                        copiedSlug === viewProductInfo.slug
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-mono font-bold border transition-all cursor-pointer ${copiedSlug === viewProductInfo.slug
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                           : 'bg-slate-900/80 text-purple-400 border-slate-700 hover:bg-slate-700 hover:text-white'
-                      }`}
+                        }`}
                       title="Bấm để sao chép mã Slug"
                     >
                       {copiedSlug === viewProductInfo.slug ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -874,6 +907,14 @@ export const ProductsPage = () => {
                       {viewProductInfo.isActive ? 'Đang bán' : 'Đã ẩn'}
                     </span>
                   </p>
+                  {viewProductInfo.description && (
+                    <div className="pt-2 border-t border-slate-700/30">
+                      <span className="text-slate-400 block mb-1">Mô tả sản phẩm:</span>
+                      <p className="text-white text-xs whitespace-pre-wrap bg-slate-900/60 p-2.5 rounded-lg border border-slate-700/40">
+                        {viewProductInfo.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50 space-y-2 text-sm">
@@ -900,7 +941,7 @@ export const ProductsPage = () => {
               {viewProductInfo.attributes && Object.keys(viewProductInfo.attributes).length > 0 && (
                 <div className="bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
                   <div className="flex items-center gap-2 mb-3 text-slate-300 font-semibold border-b border-slate-700/50 pb-2">
-                    <Tag size={18} /> Thuộc tính tuỳ chỉnh
+                    <Tag size={18} /> 📌 Hướng dẫn & Lưu ý gửi kèm khi giao hàng
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                     {Object.entries(viewProductInfo.attributes).map(([key, val]) => (
@@ -908,7 +949,7 @@ export const ProductsPage = () => {
                         <div className="bg-slate-800 px-3 py-2 text-slate-400 font-medium whitespace-nowrap min-w-[100px]">
                           {key}
                         </div>
-                        <div className="px-3 py-2 text-white flex-1 break-words">
+                        <div className="px-3 py-2 text-white flex-1 break-words whitespace-pre-wrap">
                           {String(val)}
                         </div>
                       </div>

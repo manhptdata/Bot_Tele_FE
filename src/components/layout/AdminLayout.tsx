@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { GlobalEmojiPicker } from '../ui/GlobalEmojiPicker';
 
 export const AdminLayout = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -24,6 +25,8 @@ export const AdminLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      <GlobalEmojiPicker />
     </div>
   );
 };
