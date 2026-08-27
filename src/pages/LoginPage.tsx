@@ -25,7 +25,11 @@ export const LoginPage = () => {
     e.preventDefault();
     try {
       const response = await login({ username, password }).unwrap();
-      dispatch(loginSuccess({ token: response.token, user: { id: response.userId, username: response.userName, role: response.role } }));
+      dispatch(loginSuccess({
+        token: response.token,
+        refreshToken: response.refreshToken,
+        user: { id: response.userId, username: response.userName, role: response.role }
+      }));
       toast.success('Đăng nhập thành công!');
       navigate(response.role === 'ADMIN' ? '/dashboard' : '/orders');
     } catch (err: any) {
