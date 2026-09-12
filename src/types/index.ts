@@ -29,6 +29,7 @@ export interface Product {
   description: string;
   price: number;
   imageUrl: string;
+  iconCustomEmojiId?: string;
   isActive: boolean;
   deliveryMode: 'AUTO' | 'MANUAL';
   stockCount: number;
@@ -46,6 +47,7 @@ export interface ProductUpsertPayload {
   description?: string;
   price: string;
   imageUrl?: string;
+  iconCustomEmojiId?: string;
   isActive: boolean;
   deliveryMode: 'AUTO' | 'MANUAL';
   stockCount?: number;

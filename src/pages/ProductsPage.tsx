@@ -86,6 +86,7 @@ export const ProductsPage = () => {
     categoryId: string;
     description: string;
     imageUrl: string;
+    iconCustomEmojiId: string;
     deliveryMode: 'AUTO' | 'MANUAL';
     stockCount: string;
     accountFormat: string;
@@ -98,6 +99,7 @@ export const ProductsPage = () => {
     categoryId: '',
     description: '',
     imageUrl: '',
+    iconCustomEmojiId: '',
     deliveryMode: 'AUTO',
     stockCount: '0',
     accountFormat: 'Tài khoản|Mật khẩu',
@@ -116,6 +118,7 @@ export const ProductsPage = () => {
         categoryId: product.categoryId?.toString() ?? '',
         description: product.description || '',
         imageUrl: product.imageUrl || '',
+        iconCustomEmojiId: product.iconCustomEmojiId || '',
         deliveryMode: product.deliveryMode,
         stockCount: String(product.stockCount ?? 0),
         accountFormat: product.accountFormat || 'Tài khoản|Mật khẩu',
@@ -140,6 +143,7 @@ export const ProductsPage = () => {
         categoryId: '',
         description: '',
         imageUrl: '',
+        iconCustomEmojiId: '',
         deliveryMode: 'AUTO',
         stockCount: '0',
         accountFormat: 'Tài khoản|Mật khẩu',
@@ -189,6 +193,7 @@ export const ProductsPage = () => {
         ...formData,
         price: formData.price.trim(),
         imageUrl: formData.imageUrl.trim() || undefined,
+        iconCustomEmojiId: formData.iconCustomEmojiId.trim() || undefined,
         categoryId: formData.categoryId ? Number(formData.categoryId) : null,
         stockCount: formData.deliveryMode === 'MANUAL' ? numericStock : undefined,
         attributes: attributesRecord,
@@ -733,6 +738,20 @@ export const ProductsPage = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Link Ảnh Sản Phẩm (Tùy chọn)</label>
                 <input type="url" placeholder="https://example.com/product.png" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.imageUrl} onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Icon Custom Emoji ID (Tùy chọn)</label>
+                <input
+                  type="text"
+                  placeholder="Gửi custom emoji cho bot bằng tài khoản admin để lấy ID"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.iconCustomEmojiId}
+                  onChange={(e) => setFormData({ ...formData, iconCustomEmojiId: e.target.value })}
+                />
+                <p className="text-xs text-slate-500 mt-1">
+                  Icon hiển thị trước tên sản phẩm trên nút bấm của bot. Để trống nếu chưa có — nút vẫn hiển thị bình thường.
+                </p>
               </div>
 
               <div className="pt-2 border-t border-slate-700/50">
