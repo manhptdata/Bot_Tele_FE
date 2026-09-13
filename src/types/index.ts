@@ -11,6 +11,7 @@ export interface Category {
   description: string;
   sortOrder?: number;
   imageUrl?: string;
+  iconCustomEmojiId?: string;
   isActive: boolean;
   createdAt: string;
 }
