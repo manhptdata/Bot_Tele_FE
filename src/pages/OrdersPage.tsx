@@ -36,6 +36,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
 import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
 import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
+import { DeliveryOutboxStatus } from '../components/orders/DeliveryOutboxStatus';
 
 interface OrderStatusConfig {
   label: string;
@@ -152,6 +153,8 @@ export const OrdersPage = () => {
           source: 'CUSTOM',
           content: content,
           releaseExistingReservations: true,
+          // Admin đã tự bàn giao qua chat nên không để bot gửi lại ghi chú này cho khách
+          notifyCustomer: false,
         }).unwrap();
       } else {
         await markManuallyDelivered({
@@ -700,6 +703,8 @@ ${payload}
                               </strong>
                             </span>
                           </div>
+
+                          <DeliveryOutboxStatus order={orderDetail} />
 
                           {orderDetail.manualDeliveryContent && (
                             <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 font-mono text-xs text-slate-200 whitespace-pre-wrap select-all">

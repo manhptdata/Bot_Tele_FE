@@ -78,6 +78,12 @@ export const ProductsPage = () => {
   const [isQuickSlugManuallyEdited, setIsQuickSlugManuallyEdited] = useState(false);
   const [showIconGuide, setShowIconGuide] = useState(false);
 
+  // Giá trị gốc lúc mở modal. Dùng để chỉ gửi stockCount lên server khi admin thực sự
+  // đổi nó — nếu gửi kèm mọi lúc, một đơn hàng phát sinh trong lúc modal đang mở sẽ khiến
+  // server từ chối lưu dù admin chỉ sửa giá hoặc mô tả.
+  const [initialStockCount, setInitialStockCount] = useState<string>('0');
+  const [initialDeliveryMode, setInitialDeliveryMode] = useState<string>('AUTO');
+
   const [attributeList, setAttributeList] = useState<{ key: string, value: string }[]>([]);
   const [formatFieldsList, setFormatFieldsList] = useState<string[]>(['Tài khoản', 'Mật khẩu']);
   const [formData, setFormData] = useState<{
@@ -127,6 +133,9 @@ export const ProductsPage = () => {
         isActive: product.isActive
       });
 
+      setInitialStockCount(String(product.stockCount ?? 0));
+      setInitialDeliveryMode(product.deliveryMode);
+
       const formatString = product.accountFormat || 'Tài khoản|Mật khẩu';
       setFormatFieldsList(formatString.split('|').filter((f: string) => f.trim() !== ''));
 
@@ -151,6 +160,8 @@ export const ProductsPage = () => {
         displayType: 'MULTI_LINE',
         isActive: true
       });
+      setInitialStockCount('0');
+      setInitialDeliveryMode('AUTO');
       setFormatFieldsList(['Tài khoản', 'Mật khẩu']);
       setAttributeList([]);
     }
@@ -190,13 +201,20 @@ export const ProductsPage = () => {
         }
         return acc;
       }, {} as Record<string, string>);
+      // Chỉ đính kèm stockCount khi thực sự cần: tạo mới, đổi chế độ giao hàng (backend đọc
+      // trường này khi chuyển AUTO -> MANUAL và rơi về 0 nếu thiếu), hoặc admin sửa đúng ô tồn kho.
+      // Nhờ vậy việc sửa giá/mô tả không bị server chặn khi sản phẩm đang có đơn chưa hoàn tất.
+      const isStockChanged = formData.stockCount !== initialStockCount;
+      const isModeChanged = formData.deliveryMode !== initialDeliveryMode;
+      const shouldSendStock = !editingId || isModeChanged || isStockChanged;
+
       const payload: ProductUpsertPayload = {
         ...formData,
         price: formData.price.trim(),
         imageUrl: formData.imageUrl.trim() || undefined,
         iconCustomEmojiId: formData.iconCustomEmojiId.trim() || undefined,
         categoryId: formData.categoryId ? Number(formData.categoryId) : null,
-        stockCount: formData.deliveryMode === 'MANUAL' ? numericStock : undefined,
+        stockCount: (formData.deliveryMode === 'MANUAL' && shouldSendStock) ? numericStock : undefined,
         attributes: attributesRecord,
         accountFormat: formatFieldsList.filter(f => f.trim() !== '').join('|') || 'Tài khoản'
       };
@@ -431,8 +449,8 @@ export const ProductsPage = () => {
                         type="button"
                         onClick={(e) => handleCopyCode(e, product.slug)}
                         className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-bold border transition-all duration-200 group cursor-pointer ${copiedSlug === product.slug
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/50'
-                            : 'bg-slate-800/80 text-purple-400 border-slate-700 hover:bg-slate-700/80 hover:border-purple-500/50 hover:text-purple-300'
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 ring-1 ring-emerald-500/50'
+                          : 'bg-slate-800/80 text-purple-400 border-slate-700 hover:bg-slate-700/80 hover:border-purple-500/50 hover:text-purple-300'
                           }`}
                         title="Bấm chuột trái để sao chép mã Slug"
                       >
@@ -475,9 +493,28 @@ export const ProductsPage = () => {
                           )}
                         </div>
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                          {product.stockCount} có sẵn
-                        </span>
+                        <div className="space-y-1">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                            {product.stockCount} có sẵn
+                          </span>
+                          {/* Đối chiếu với kho tài khoản thật. Chỉ cảnh báo khi kho CÓ hàng nhưng
+                              không đủ — đó là dấu hiệu định giao từ kho mà thiếu. Kho bằng 0 nghĩa
+                              là sản phẩm giao tay, hoàn toàn bình thường, không được báo động. */}
+                          {typeof product.warehouseAvailableCount === 'number' && (
+                            product.warehouseAvailableCount > 0 && product.warehouseAvailableCount < product.stockCount ? (
+                              <div
+                                className="text-[11px] font-medium text-amber-400"
+                                title="Số bán được đang lớn hơn số tài khoản thực có trong kho. Nếu giao bằng cách lấy từ kho sẽ không đủ hàng."
+                              >
+                                ⚠️ Kho chỉ còn {product.warehouseAvailableCount} acc
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                Kho: {product.warehouseAvailableCount} acc
+                              </div>
+                            )
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="p-4 text-xs font-medium">
@@ -775,19 +812,19 @@ export const ProductsPage = () => {
                     <div className="grid gap-2 pl-0.5">
                       <div className="flex items-start gap-2">
                         <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">1</span>
-                        <span>Mở ứng dụng Telegram → vào khung chat với <b>chính con Bot của shop</b>.</span>
+                        <span>Mở ứng dụng Telegram $\rightarrow$ vào khung chat với <b>chính con Bot của shop</b>.</span>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">2</span>
-                        <span>Mở bảng Emoji → chọn Custom Emoji (logo Netflix, Canva, ChatGPT...) rồi <b>Gửi cho Bot</b>.</span>
+                        <span>Mở bảng Emoji $\rightarrow$ chọn Custom Emoji (logo Netflix, Canva, ChatGPT...) rồi <b>Gửi cho Bot</b>.</span>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">3</span>
-                        <span>Bot sẽ tự động trả lời lại tin nhắn chứa <b>mã số ID</b> → chạm/bấm vào mã số để Copy.</span>
+                        <span>Bot sẽ tự động trả lời lại tin nhắn chứa <b>mã số ID</b> $\rightarrow$ chạm/bấm vào mã số để Copy.</span>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">4</span>
-                        <span>Dán mã ID vào ô này → bấm <b>Lưu thay đổi</b> là xong!</span>
+                        <span>Dán mã ID vào ô này $\rightarrow$ bấm <b>Lưu thay đổi</b> là xong!</span>
                       </div>
                     </div>
 
@@ -956,8 +993,8 @@ export const ProductsPage = () => {
                       type="button"
                       onClick={(e) => handleCopyCode(e, viewProductInfo.slug)}
                       className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-mono font-bold border transition-all cursor-pointer ${copiedSlug === viewProductInfo.slug
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                          : 'bg-slate-900/80 text-purple-400 border-slate-700 hover:bg-slate-700 hover:text-white'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-slate-900/80 text-purple-400 border-slate-700 hover:bg-slate-700 hover:text-white'
                         }`}
                       title="Bấm để sao chép mã Slug"
                     >

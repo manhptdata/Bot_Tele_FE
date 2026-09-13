@@ -154,6 +154,7 @@ export const SettingsPage = () => {
     paymentTimeoutMinutes: defaultConfig?.paymentTimeoutMinutes !== undefined ? defaultConfig.paymentTimeoutMinutes : 5,
     bankFeeType: defaultConfig?.bankFeeType || 'FIXED',
     bankFeeAmount: defaultConfig?.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
+    maxPendingOrdersPerCustomer: defaultConfig?.maxPendingOrdersPerCustomer ?? 0,
     guideContent: defaultConfig?.guideContent || '',
   });
 
@@ -227,6 +228,7 @@ export const SettingsPage = () => {
         paymentTimeoutMinutes: defaultConfig.paymentTimeoutMinutes !== undefined ? defaultConfig.paymentTimeoutMinutes : 5,
         bankFeeType: defaultConfig.bankFeeType || 'FIXED',
         bankFeeAmount: defaultConfig.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
+        maxPendingOrdersPerCustomer: defaultConfig.maxPendingOrdersPerCustomer ?? 0,
         guideContent: defaultConfig.guideContent || '',
       });
     }
@@ -267,6 +269,7 @@ export const SettingsPage = () => {
       paymentTimeoutMinutes: Number(paymentFormData.paymentTimeoutMinutes) || 5,
       bankFeeType: paymentFormData.bankFeeType as 'FIXED' | 'PERCENT',
       bankFeeAmount: Number(paymentFormData.bankFeeAmount) || 0,
+      maxPendingOrdersPerCustomer: Math.max(0, Math.floor(Number(paymentFormData.maxPendingOrdersPerCustomer) || 0)),
       guideContent: paymentFormData.guideContent,
     };
     if (paymentFormData.webhookApiKey && paymentFormData.webhookApiKey.trim() !== '') {
@@ -856,6 +859,27 @@ export const SettingsPage = () => {
                           />
                           <span className="text-xs text-slate-400 leading-relaxed">
                             Sau <strong className="text-amber-400">{paymentFormData.paymentTimeoutMinutes || 5} phút</strong>, mã QR sẽ tự động bị xóa khỏi chat.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-800/80 space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-200">
+                          Số đơn chờ thanh toán tối đa (Mỗi khách)
+                        </label>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            name="maxPendingOrdersPerCustomer"
+                            value={paymentFormData.maxPendingOrdersPerCustomer}
+                            onChange={handlePaymentChange}
+                            placeholder="0 = Không giới hạn"
+                            className="w-24 bg-slate-800/80 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-center font-bold"
+                          />
+                          <span className="text-xs text-slate-400 leading-relaxed">
+                            Gõ con số bạn muốn (VD: 3, 5, 10...). Nhập <strong className="text-amber-400">0</strong> để cho phép khách tạo đơn chuyển khoản không giới hạn.
                           </span>
                         </div>
                       </div>

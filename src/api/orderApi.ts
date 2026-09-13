@@ -80,12 +80,19 @@ export const orderApi = baseApi.injectEndpoints({
     // 4. Hoàn tất giao hàng cho đơn MANUAL
     completeManualDelivery: builder.mutation<
       { message: string },
-      { orderId: number; source: 'INVENTORY' | 'CUSTOM'; content?: string; releaseExistingReservations?: boolean }
+      {
+        orderId: number;
+        source: 'INVENTORY' | 'CUSTOM';
+        content?: string;
+        releaseExistingReservations?: boolean;
+        // true (mặc định): bot tự gửi nội dung bàn giao cho khách qua Telegram
+        notifyCustomer?: boolean;
+      }
     >({
-      query: ({ orderId, source, content, releaseExistingReservations = false }) => ({
+      query: ({ orderId, source, content, releaseExistingReservations = false, notifyCustomer = true }) => ({
         url: `/admin/orders/${orderId}/manual-delivery/complete`,
         method: 'POST',
-        body: { source, content, releaseExistingReservations },
+        body: { source, content, releaseExistingReservations, notifyCustomer },
       }),
       invalidatesTags: ['Order', 'Account', 'Product'],
     }),

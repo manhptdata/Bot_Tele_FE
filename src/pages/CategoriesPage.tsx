@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useGetCategoriesQuery, useCreateCategoryMutation, useUpdateCategoryMutation, useDeleteCategoryMutation, useLazyGetProductCountQuery } from '../api/categoryApi';
-import { Plus, Edit2, Trash2, FolderTree, X, Search, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, FolderTree, X, Search, Image as ImageIcon, RefreshCw, HelpCircle, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
@@ -27,11 +27,13 @@ export const CategoriesPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
+  const [showIconGuide, setShowIconGuide] = useState(false);
   const [formData, setFormData] = useState<{
     name: string;
     slug: string;
     description: string;
     imageUrl: string;
+    iconCustomEmojiId: string;
     sortOrder: number;
     isActive: boolean;
   }>({
@@ -39,11 +41,13 @@ export const CategoriesPage = () => {
     slug: '',
     description: '',
     imageUrl: '',
+    iconCustomEmojiId: '',
     sortOrder: 0,
     isActive: true
   });
 
   const handleOpenModal = (category?: any) => {
+    setShowIconGuide(false);
     if (category) {
       setEditingId(category.id);
       setIsSlugManuallyEdited(true);
@@ -52,13 +56,14 @@ export const CategoriesPage = () => {
         slug: category.slug,
         description: category.description || '',
         imageUrl: category.imageUrl || '',
+        iconCustomEmojiId: category.iconCustomEmojiId || '',
         sortOrder: category.sortOrder ?? 0,
         isActive: category.isActive
       });
     } else {
       setEditingId(null);
       setIsSlugManuallyEdited(false);
-      setFormData({ name: '', slug: '', description: '', imageUrl: '', sortOrder: 0, isActive: true });
+      setFormData({ name: '', slug: '', description: '', imageUrl: '', iconCustomEmojiId: '', sortOrder: 0, isActive: true });
     }
     setIsModalOpen(true);
   };
@@ -66,11 +71,15 @@ export const CategoriesPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...formData,
+        iconCustomEmojiId: formData.iconCustomEmojiId.trim() || undefined
+      };
       if (editingId) {
-        await updateCategory({ id: editingId, data: formData }).unwrap();
+        await updateCategory({ id: editingId, data: payload }).unwrap();
         toast.success('Đã cập nhật danh mục!');
       } else {
-        await createCategory(formData).unwrap();
+        await createCategory(payload).unwrap();
         toast.success('Đã thêm danh mục mới!');
       }
       setIsModalOpen(false);
@@ -166,6 +175,11 @@ export const CategoriesPage = () => {
                         {cat.slug === 'other' && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/20 text-amber-400 border border-amber-500/30">
                             Mặc định
+                          </span>
+                        )}
+                        {cat.iconCustomEmojiId && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono" title={`Emoji ID: ${cat.iconCustomEmojiId}`}>
+                            Emoji ✨
                           </span>
                         )}
                       </div>
@@ -299,6 +313,45 @@ export const CategoriesPage = () => {
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Link Ảnh Bìa (Tùy chọn)</label>
                 <input type="url" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.imageUrl} onChange={(e) => setFormData({...formData, imageUrl: e.target.value})} placeholder="https://example.com/banner.png" />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Icon Custom Emoji ID (Tùy chọn)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowIconGuide(!showIconGuide)}
+                    className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <HelpCircle size={13} />
+                    <span>{showIconGuide ? 'Ẩn hướng dẫn' : 'Cách lấy ID icon'}</span>
+                    {showIconGuide ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 5368324170671202286"
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.iconCustomEmojiId}
+                  onChange={(e) => setFormData({ ...formData, iconCustomEmojiId: e.target.value })}
+                />
+
+                {showIconGuide && (
+                  <div className="mt-2 bg-blue-950/40 border border-blue-500/30 p-3 rounded-xl text-xs text-slate-300 space-y-2 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5 text-blue-400 font-semibold">
+                      <Sparkles size={14} />
+                      <span>Cách lấy mã Icon cho danh mục (5 giây):</span>
+                    </div>
+                    <div className="text-slate-300 text-[11px] space-y-1 pl-1">
+                      <p>1. Mở Telegram → vào khung chat với <b>Bot của shop</b>.</p>
+                      <p>2. Chọn một <b>Custom Emoji</b> bất kỳ rồi gửi cho Bot.</p>
+                      <p>3. Bot sẽ phản hồi lại ngay <b>mã ID</b> → chạm để sao chép rồi dán vào ô này.</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div>
