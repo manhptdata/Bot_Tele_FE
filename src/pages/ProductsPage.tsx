@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useGetProductsQuery, useDeleteProductMutation, useCreateProductMutation, useUpdateProductMutation } from '../api/productApi';
 import { useGetCategoriesQuery, useCreateCategoryMutation } from '../api/categoryApi';
 import { ProductUpsertPayload } from '../types';
-import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, FolderTree, RefreshCw, Copy, Check, PlusCircle, MinusCircle, Sparkles, Bot, RotateCcw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, X, Search, Eye, Tag, Settings, Box, Image as ImageIcon, FolderTree, RefreshCw, Copy, Check, PlusCircle, MinusCircle, Sparkles, Bot, RotateCcw, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { CurrencyInput } from '../components/ui/CurrencyInput';
@@ -76,6 +76,7 @@ export const ProductsPage = () => {
   const [quickCategoryName, setQuickCategoryName] = useState('');
   const [quickCategorySlug, setQuickCategorySlug] = useState('');
   const [isQuickSlugManuallyEdited, setIsQuickSlugManuallyEdited] = useState(false);
+  const [showIconGuide, setShowIconGuide] = useState(false);
 
   const [attributeList, setAttributeList] = useState<{ key: string, value: string }[]>([]);
   const [formatFieldsList, setFormatFieldsList] = useState<string[]>(['Tài khoản', 'Mật khẩu']);
@@ -740,16 +741,64 @@ export const ProductsPage = () => {
                 <input type="url" placeholder="https://example.com/product.png" className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" value={formData.imageUrl} onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })} />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Icon Custom Emoji ID (Tùy chọn)</label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    Icon Custom Emoji ID (Tùy chọn)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowIconGuide(!showIconGuide)}
+                    className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors py-0.5 px-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20"
+                  >
+                    <HelpCircle size={13} />
+                    <span>{showIconGuide ? 'Ẩn hướng dẫn' : 'Cách lấy ID icon'}</span>
+                    {showIconGuide ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                </div>
+
                 <input
                   type="text"
-                  placeholder="Gửi custom emoji cho bot bằng tài khoản admin để lấy ID"
+                  placeholder="Ví dụ: 5368324170671202286"
                   className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2 text-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={formData.iconCustomEmojiId}
                   onChange={(e) => setFormData({ ...formData, iconCustomEmojiId: e.target.value })}
                 />
-                <p className="text-xs text-slate-500 mt-1">
+
+                {showIconGuide && (
+                  <div className="bg-blue-950/40 border border-blue-500/30 p-3.5 rounded-xl text-xs text-slate-300 space-y-2.5 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5 text-blue-400 font-semibold">
+                      <Sparkles size={14} />
+                      <span>Quy trình lấy mã Icon cho sản phẩm (Mất 5 giây):</span>
+                    </div>
+
+                    <div className="grid gap-2 pl-0.5">
+                      <div className="flex items-start gap-2">
+                        <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">1</span>
+                        <span>Mở ứng dụng Telegram → vào khung chat với <b>chính con Bot của shop</b>.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">2</span>
+                        <span>Mở bảng Emoji → chọn Custom Emoji (logo Netflix, Canva, ChatGPT...) rồi <b>Gửi cho Bot</b>.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">3</span>
+                        <span>Bot sẽ tự động trả lời lại tin nhắn chứa <b>mã số ID</b> → chạm/bấm vào mã số để Copy.</span>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <span className="w-4 h-4 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold shrink-0 text-[10px] mt-0.5">4</span>
+                        <span>Dán mã ID vào ô này → bấm <b>Lưu thay đổi</b> là xong!</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-blue-500/20 text-[11px] text-slate-400 flex items-center gap-1.5">
+                      <span>💡</span>
+                      <span><b>Lưu ý:</b> Tài khoản chủ bot cần có <b>Telegram Premium</b> để bot có quyền hiển thị Custom Emoji trên nút bấm.</span>
+                    </div>
+                  </div>
+                )}
+
+                <p className="text-xs text-slate-500">
                   Icon hiển thị trước tên sản phẩm trên nút bấm của bot. Để trống nếu chưa có — nút vẫn hiển thị bình thường.
                 </p>
               </div>
