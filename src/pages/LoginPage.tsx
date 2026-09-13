@@ -45,7 +45,7 @@ export const LoginPage = () => {
     }
     try {
       await forgotPassword({ username }).unwrap();
-      toast.success('Đã gửi mã OTP qua Telegram của bạn!');
+      toast.success('Nếu tài khoản tồn tại và đã liên kết Telegram, mã OTP đã được gửi qua Telegram.');
       setView('FORGOT_STEP_2');
     } catch (err: any) {
       toast.error(err?.data?.message || 'Không thể gửi OTP. Vui lòng kiểm tra lại.');

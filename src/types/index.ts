@@ -33,6 +33,8 @@ export interface Product {
   isActive: boolean;
   deliveryMode: 'AUTO' | 'MANUAL';
   stockCount: number;
+  /** Số tài khoản AVAILABLE thực có trong kho. Chỉ đọc, để đối chiếu với stockCount của hàng MANUAL. */
+  warehouseAvailableCount?: number;
   accountFormat: string;
   displayType: 'MULTI_LINE' | 'RAW';
   attributes?: Record<string, string>;
@@ -113,6 +115,8 @@ export interface OrderDetail {
   manualDeliveryContent?: string;
   manuallyDeliveredBy?: string;
   manuallyDeliveredAt?: string;
+  deliveryOutboxStatus?: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'SENT_REVIEW_REQUIRED' | 'MANUALLY_DELIVERED' | 'CANCELLED_REFUNDED';
+  deliveryOutboxError?: string;
   adminNote?: string;
   createdAt: string;
   customer: {
@@ -157,6 +161,8 @@ export interface PaymentConfig {
   paymentTimeoutMinutes?: number;
   bankFeeType?: 'FIXED' | 'PERCENT';
   bankFeeAmount?: number;
+  // Số đơn chờ chuyển khoản tối đa mỗi khách; 0 = không giới hạn
+  maxPendingOrdersPerCustomer?: number;
   guideContent?: string;
   createdAt?: string;
   updatedAt?: string;
@@ -173,6 +179,7 @@ export interface PaymentConfigSaveRequest {
   paymentTimeoutMinutes?: number;
   bankFeeType?: 'FIXED' | 'PERCENT';
   bankFeeAmount?: number;
+  maxPendingOrdersPerCustomer?: number;
   guideContent?: string;
   webhookApiKey?: string;
   webhookSecret?: string;

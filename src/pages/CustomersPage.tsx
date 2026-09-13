@@ -21,6 +21,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { CurrencyInput } from '../components/ui/CurrencyInput';
 import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
 import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
+import { DeliveryOutboxStatus } from '../components/orders/DeliveryOutboxStatus';
 import {
   Users,
   Search,
@@ -1107,6 +1108,7 @@ ${payload}
                           Nguồn: <strong className="text-emerald-300 font-mono">{orderDetail.deliverySource === 'CUSTOM' ? 'Tự nhập' : 'Kho hàng'}</strong>
                         </span>
                       </div>
+                      <DeliveryOutboxStatus order={orderDetail} />
                       {orderDetail.manualDeliveryContent && (
                         <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-200 whitespace-pre-wrap select-all">
                           {orderDetail.manualDeliveryContent}

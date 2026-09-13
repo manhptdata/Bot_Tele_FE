@@ -105,7 +105,12 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
   const navigateByNotification = (type: string, referenceId?: string | null) => {
     switch (type) {
       case 'ORDER':
+      case 'ORDER_MANUAL':
+      case 'DELIVERY_FAILED':
         navigate('/orders');
+        break;
+      case 'PAYMENT_REVIEW':
+        navigate('/payment-events');
         break;
       case 'DEPOSIT':
         navigate('/customers');

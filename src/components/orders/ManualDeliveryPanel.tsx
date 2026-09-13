@@ -31,6 +31,7 @@ export const ManualDeliveryPanel: React.FC<ManualDeliveryPanelProps> = ({ order,
   const [releaseExistingReservations, setReleaseExistingReservations] = useState(false);
   const [showSwitchWarningModal, setShowSwitchWarningModal] = useState(false);
   const [showConfirmCompleteModal, setShowConfirmCompleteModal] = useState(false);
+  const [notifyCustomer, setNotifyCustomer] = useState(true);
 
   // Picker state
   const [pickerTarget, setPickerTarget] = useState<{
@@ -137,6 +138,7 @@ ${credentialSection}
         source: deliverySource,
         content: deliverySource === 'CUSTOM' ? customContent.trim() : undefined,
         releaseExistingReservations: deliverySource === 'CUSTOM' ? releaseExistingReservations : false,
+        notifyCustomer,
       }).unwrap();
       if (onSuccess) onSuccess();
     } catch (err: any) {
@@ -325,7 +327,7 @@ Hoặc: Link mời nhóm Canva: https://canva.me/invite/..."
       <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-            <span>💬 Mẫu Tin Nhắn Gửi Khách Hàng (Live Preview)</span>
+            <span>💬 Mẫu Tin Nhắn Tham Khảo (Bot gửi theo định dạng riêng)</span>
           </h4>
           <div className="flex items-center gap-2">
             {order.customer?.username && (
@@ -363,6 +365,23 @@ Hoặc: Link mời nhóm Canva: https://canva.me/invite/..."
           {telegramMessage}
         </div>
       </div>
+
+      {/* Tùy chọn để Bot tự gửi nội dung bàn giao */}
+      <label className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80 flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={notifyCustomer}
+          onChange={(e) => setNotifyCustomer(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-emerald-500 shrink-0"
+        />
+        <span className="text-xs text-slate-300 leading-relaxed">
+          <strong className="text-slate-100">Bot tự gửi nội dung bàn giao cho khách qua Telegram</strong>
+          <br />
+          <span className="text-slate-400">
+            Bỏ chọn nếu bạn đã tự gửi cho khách qua chat riêng (bot sẽ không nhắn gì thêm).
+          </span>
+        </span>
+      </label>
 
       {/* Nút Hoàn Tất Giao Hàng */}
       <button
@@ -435,7 +454,9 @@ Hoặc: Link mời nhóm Canva: https://canva.me/invite/..."
             <div className="text-center space-y-2">
               <h3 className="text-base font-bold text-white">Xác nhận hoàn tất giao hàng</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Chỉ xác nhận sau khi bạn đã sao chép và gửi nội dung cho khách hàng. Sau khi xác nhận:
+                {notifyCustomer
+                  ? 'Bot sẽ gửi ngay nội dung bàn giao cho khách qua Telegram. Sau khi xác nhận:'
+                  : 'Bot sẽ KHÔNG nhắn cho khách. Chỉ xác nhận sau khi bạn đã tự gửi nội dung cho khách hàng. Sau khi xác nhận:'}
                 <br />
                 {deliverySource === 'INVENTORY'
                   ? '• Các tài khoản đã chọn sẽ chuyển thành SOLD (Đã bán).'
