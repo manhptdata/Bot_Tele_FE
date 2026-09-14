@@ -205,6 +205,7 @@ export interface BotConfig {
   adminChatId?: number;
   contactTelegram?: string;
   contactPhone?: string;
+  welcomeMessage?: string;
   status: BotStatus;
   isActive: boolean;
   errorMessage?: string;
@@ -234,6 +235,11 @@ export interface BotConfigSaveRequest {
   contactTelegram?: string;
   contactPhone?: string;
   adminPassword: string;
+}
+
+/** Lời chào /start. Đi endpoint riêng, KHÔNG kèm adminPassword. */
+export interface WelcomeMessageRequest {
+  welcomeMessage?: string;
 }
 
 export interface DisconnectBotRequest {

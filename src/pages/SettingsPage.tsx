@@ -8,6 +8,8 @@ import {
 import {
   useGetActiveBotConfigQuery,
   useUpdateBotConfigMutation,
+  useUpdateWelcomeMessageMutation,
+  useTestWelcomeMessageMutation,
   useDisconnectBotMutation,
 } from '../api/botConfigApi';
 import { CurrencyInput } from '../components/ui/CurrencyInput';
@@ -38,7 +40,12 @@ import {
   Phone,
   MessageSquare,
   UserCheck,
-  Info
+  Info,
+  Send,
+  RotateCcw,
+  HelpCircle,
+  Plus,
+  Sparkles
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PaymentConfigSaveRequest, BotMode, BotConfigSaveRequest } from '../types';
@@ -76,6 +83,65 @@ export const SettingsPage = () => {
   const [showBotAdminPassword, setShowBotAdminPassword] = useState(false);
   const [botActionType, setBotActionType] = useState<'SAVE' | 'DISCONNECT'>('SAVE');
 
+  // ==================== LỜI CHÀO /start ====================
+  // Tách hoàn toàn khỏi botFormData: đi endpoint riêng, không cần mật khẩu Admin.
+  interface WelcomeVariable {
+    key: string;
+    label: string;
+    example: string;
+    desc: string;
+    fallback: string;
+    color: string;
+  }
+
+  const WELCOME_VARIABLES: WelcomeVariable[] = [
+    {
+      key: '{firstName}',
+      label: 'Tên khách',
+      example: 'Mạnh',
+      desc: 'Tên gọi của khách hàng trên Telegram',
+      fallback: 'Để trống nếu không có (không in chữ null)',
+      color: 'bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border-blue-500/30',
+    },
+    {
+      key: '{lastName}',
+      label: 'Họ của khách',
+      example: 'Phạm',
+      desc: 'Họ hoặc tên đệm của khách hàng',
+      fallback: 'Tự động bỏ qua nếu khách không cài đặt Họ',
+      color: 'bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border-indigo-500/30',
+    },
+    {
+      key: '{fullName}',
+      label: 'Họ và tên đầy đủ',
+      example: 'Phạm Mạnh',
+      desc: 'Ghép Họ + Tên. Khuyên dùng để xưng hô lịch sự và tự nhiên',
+      fallback: 'Nếu khách không có họ sẽ tự động lấy duy nhất Tên',
+      color: 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30',
+    },
+    {
+      key: '{username}',
+      label: '@username Telegram',
+      example: '@manh_demo',
+      desc: 'Tên tài khoản Telegram có dấu @',
+      fallback: 'Nếu chưa đặt username sẽ tự động thay bằng Họ và tên',
+      color: 'bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border-purple-500/30',
+    },
+  ];
+
+  const [showVariableGuide, setShowVariableGuide] = useState(true);
+
+  // Bản sao hiển thị của MenuBotHandler.DEFAULT_WELCOME_TEMPLATE (backend là nguồn sự thật).
+  const DEFAULT_WELCOME_TEMPLATE =
+    '🛒 *Xin chào {firstName}! Chào mừng đến với BotShop!*\n\n' +
+    'Cửa hàng số tự động — mua hàng nhanh, nhận hàng ngay.\n\n' +
+    'Hãy chọn một chức năng bên dưới ↓';
+
+  const [welcomeDraft, setWelcomeDraft] = useState('');
+  const welcomeRef = useRef<HTMLTextAreaElement>(null);
+  const [updateWelcome, { isLoading: isSavingWelcome }] = useUpdateWelcomeMessageMutation();
+  const [testWelcome, { isLoading: isTestingWelcome }] = useTestWelcomeMessageMutation();
+
   useEffect(() => {
     if (botConfig) {
       setBotFormData({
@@ -87,6 +153,7 @@ export const SettingsPage = () => {
         contactTelegram: botConfig.contactTelegram || '',
         contactPhone: botConfig.contactPhone || '',
       });
+      setWelcomeDraft(botConfig.welcomeMessage || '');
     }
   }, [botConfig]);
 
@@ -101,6 +168,38 @@ export const SettingsPage = () => {
     setBotActionType('DISCONNECT');
     setBotAdminPassword('');
     setIsBotPasswordModalOpen(true);
+  };
+
+  const insertWelcomeVar = (token: string) => {
+    const el = welcomeRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? welcomeDraft.length;
+    const end = el.selectionEnd ?? start;
+    const next = welcomeDraft.slice(0, start) + token + welcomeDraft.slice(end);
+    setWelcomeDraft(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
+
+  const handleSaveWelcome = async () => {
+    try {
+      await updateWelcome({ welcomeMessage: welcomeDraft.trim() || undefined }).unwrap();
+      toast.success(welcomeDraft.trim() ? 'Đã lưu lời chào mới!' : 'Đã khôi phục lời chào mặc định!');
+    } catch (err: any) {
+      toast.error(err?.data?.message || err?.error || 'Lưu lời chào thất bại');
+    }
+  };
+
+  const handleTestWelcome = async () => {
+    try {
+      await testWelcome({ welcomeMessage: welcomeDraft.trim() || undefined }).unwrap();
+      toast.success('Đã gửi thử! Mở Telegram để kiểm tra.');
+    } catch (err: any) {
+      // Thông điệp này đến thẳng từ parser của Telegram, ví dụ "can't parse entities".
+      toast.error(err?.data?.message || err?.error || 'Gửi thử thất bại');
+    }
   };
 
   const handleConfirmBotPassword = async (e: React.FormEvent) => {
@@ -558,6 +657,172 @@ export const SettingsPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+          {/* ===== Lời chào /start — ĐẶT NGOÀI <form> ở trên, nếu không sẽ bật modal mật khẩu ===== */}
+          <div className="glass p-6 rounded-2xl border border-slate-800 shadow-xl lg:col-span-3 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/20 text-violet-400 border border-violet-500/30 flex items-center justify-center">
+                  <MessageSquare size={22} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Lời chào khi khách bấm /start</h3>
+                  <p className="text-xs text-slate-400">Hỗ trợ Markdown Telegram — *đậm*, _nghiêng_, `code`</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setWelcomeDraft(DEFAULT_WELCOME_TEMPLATE)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold border border-slate-700 transition-colors"
+              >
+                <RotateCcw size={13} />
+                Dùng mẫu mặc định
+              </button>
+            </div>
+
+            {/* Thanh Chèn biến Smart Chips & Nút xem hướng dẫn */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold">
+                  <Sparkles size={14} className="text-amber-400" />
+                  <span>Chèn biến tự động điền thông tin khách:</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowVariableGuide(!showVariableGuide)}
+                  className="flex items-center gap-1 text-[11px] text-violet-400 hover:text-violet-300 transition-colors font-medium cursor-pointer"
+                >
+                  <HelpCircle size={13} />
+                  <span>{showVariableGuide ? 'Thu gọn chú giải' : 'Xem chú giải ý nghĩa các biến'}</span>
+                </button>
+              </div>
+
+              {/* Danh sách các nút chèn biến dạng Chip thông minh */}
+              <div className="flex flex-wrap items-center gap-2">
+                {WELCOME_VARIABLES.map((v) => (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={() => insertWelcomeVar(v.key)}
+                    title={`${v.key}: ${v.desc}\nVí dụ: ${v.example}`}
+                    className={`group flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all active:scale-95 ${v.color}`}
+                  >
+                    <Plus size={12} className="opacity-70 group-hover:opacity-100 transition-opacity" />
+                    <span className="font-mono font-bold">{v.key}</span>
+                    <span className="text-[10px] opacity-80 pl-1 border-l border-current/20">
+                      {v.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Khung Bảng Hướng dẫn & Chú giải chi tiết */}
+              {showVariableGuide && (
+                <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/90 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-1.5 text-violet-400 font-bold text-xs">
+                    <Info size={14} />
+                    <span>Ý nghĩa từng biến khi gửi tin nhắn cho khách:</span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px] border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-800 text-slate-400">
+                          <th className="pb-1.5 font-semibold w-28">Mã biến</th>
+                          <th className="pb-1.5 font-semibold">Ý nghĩa & Ví dụ thực tế</th>
+                          <th className="pb-1.5 font-semibold">Khi khách không có dữ liệu</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-900 text-slate-300">
+                        {WELCOME_VARIABLES.map((v) => (
+                          <tr key={v.key} className="hover:bg-slate-900/40">
+                            <td className="py-2 font-mono font-bold text-violet-300">
+                              <button
+                                type="button"
+                                onClick={() => insertWelcomeVar(v.key)}
+                                className="hover:underline cursor-pointer text-left"
+                                title="Bấm để chèn vào ô soạn thảo"
+                              >
+                                {v.key}
+                              </button>
+                            </td>
+                            <td className="py-2 pr-3">
+                              <span className="font-medium text-white">{v.desc}</span>
+                              <span className="text-slate-400 block text-[10px] mt-0.5">
+                                Ví dụ render: <span className="text-emerald-400 font-mono font-semibold">{v.example}</span>
+                              </span>
+                            </td>
+                            <td className="py-2 text-[10px] text-slate-400">
+                              {v.fallback}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-900 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-300 font-semibold">Cú pháp Markdown Telegram:</span>
+                      <span><code className="text-violet-300 bg-slate-900 px-1 py-0.5 rounded font-mono">*in đậm*</code></span>
+                      <span><code className="text-violet-300 bg-slate-900 px-1 py-0.5 rounded font-mono">_in nghiêng_</code></span>
+                      <span><code className="text-violet-300 bg-slate-900 px-1 py-0.5 rounded font-mono">`mã code`</code></span>
+                    </div>
+                    <span className="text-slate-500 italic">
+                      🛡️ Tên khách có ký tự đặc biệt (* _ ` [ ]) sẽ được lọc tự động để chống vỡ tin nhắn.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <textarea
+                ref={welcomeRef}
+                rows={8}
+                maxLength={4096}
+                value={welcomeDraft}
+                onChange={(e) => setWelcomeDraft(e.target.value)}
+                placeholder="Để trống = dùng lời chào mặc định của hệ thống"
+                className="w-full bg-slate-800/80 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-violet-500 font-mono text-xs leading-relaxed resize-y placeholder:text-slate-500"
+              />
+              <div className="flex items-center justify-between mt-1 gap-3">
+                <p className="text-[10px] text-slate-500">
+                  Ký tự * _ ` [ ] trong tên khách được lọc tự động để không làm vỡ định dạng.
+                </p>
+                <span className={`text-[10px] font-mono shrink-0 ${welcomeDraft.length > 4000 ? 'text-rose-400 font-bold' : 'text-slate-500'}`}>
+                  {welcomeDraft.length} / 4096
+                </span>
+              </div>
+            </div>
+
+            {!botConfig?.adminChatId && (
+              <div className="flex items-center gap-1.5 text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/25 rounded-lg px-3 py-2">
+                <Info size={13} />
+                <span>Điền Admin Chat ID ở trên để dùng được chức năng gửi thử.</span>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={handleTestWelcome}
+                disabled={isTestingWelcome || !botConfig?.adminChatId || botConfig?.status !== 'RUNNING'}
+                className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-slate-700 transition-all"
+              >
+                {isTestingWelcome ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                <span>Gửi thử cho tôi</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveWelcome}
+                disabled={isSavingWelcome || !botConfig?.botUsername}
+                className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-violet-600/30 transition-all"
+              >
+                {isSavingWelcome ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                <span>Lưu lời chào</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
