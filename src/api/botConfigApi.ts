@@ -1,5 +1,5 @@
 import { baseApi } from './baseApi';
-import { BotConfig, ConnectBotRequest, BotConfigSaveRequest, DisconnectBotRequest, SetupStatus } from '../types';
+import { BotConfig, ConnectBotRequest, BotConfigSaveRequest, DisconnectBotRequest, SetupStatus, WelcomeMessageRequest } from '../types';
 
 export const botConfigApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -23,6 +23,21 @@ export const botConfigApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['BotConfig'],
     }),
+    updateWelcomeMessage: builder.mutation<BotConfig, WelcomeMessageRequest>({
+      query: (body) => ({
+        url: '/admin/bot-config/messages/welcome',
+        method: 'PUT',
+        body,
+      }),
+      invalidatesTags: ['BotConfig'],
+    }),
+    testWelcomeMessage: builder.mutation<void, WelcomeMessageRequest>({
+      query: (body) => ({
+        url: '/admin/bot-config/messages/welcome/test',
+        method: 'POST',
+        body,
+      }),
+    }),
     disconnectBot: builder.mutation<void, DisconnectBotRequest>({
       query: (body) => ({
         url: '/admin/bot-config/disconnect',
@@ -43,6 +58,8 @@ export const {
   useGetActiveBotConfigQuery,
   useConnectBotMutation,
   useUpdateBotConfigMutation,
+  useUpdateWelcomeMessageMutation,
+  useTestWelcomeMessageMutation,
   useDisconnectBotMutation,
   useGetSetupStatusQuery,
 } = botConfigApi;
