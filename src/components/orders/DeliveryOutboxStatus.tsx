@@ -13,6 +13,7 @@ const STATUS_VIEW: Record<string, { label: string; className: string }> = {
   PROCESSING: { label: 'Bot đang gửi', className: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
   SENT: { label: 'Bot đã gửi cho khách', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
   SENT_REVIEW_REQUIRED: { label: 'Đã gửi (cần kiểm tra)', className: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+  PARTIAL_SENT_REVIEW_REQUIRED: { label: 'Đã gửi một phần (cần kiểm tra)', className: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
   FAILED: { label: 'Bot gửi thất bại', className: 'bg-rose-500/15 text-rose-300 border-rose-500/30' },
   MANUALLY_DELIVERED: { label: 'Admin đã giao tay', className: 'bg-slate-500/15 text-slate-300 border-slate-500/30' },
 };

@@ -27,10 +27,11 @@ export const orderApi = baseApi.injectEndpoints({
       query: (id) => `/admin/orders/${id}`,
       providesTags: ['Order'],
     }),
-    confirmOrder: builder.mutation<any, string>({
-      query: (orderCode) => ({
+    confirmOrder: builder.mutation<any, { orderCode: string; reason: string; bankTransactionRef: string; adminPassword: string }>({
+      query: ({ orderCode, reason, bankTransactionRef, adminPassword }) => ({
         url: `/admin/orders/${orderCode}/confirm`,
         method: 'PUT',
+        body: { reason, bankTransactionRef, adminPassword },
       }),
       invalidatesTags: ['Order', 'Product'],
     }),
@@ -110,11 +111,11 @@ export const orderApi = baseApi.injectEndpoints({
       invalidatesTags: ['Order'],
     }),
 
-    refundOrder: builder.mutation<{ message: string; orderCode: string; status: string }, { id: number; reason?: string }>({
-      query: ({ id, reason }) => ({
+    refundOrder: builder.mutation<{ message: string; orderCode: string; status: string }, { id: number; reason?: string; adminPassword: string }>({
+      query: ({ id, reason, adminPassword }) => ({
         url: `/admin/orders/${id}/refund`,
         method: 'POST',
-        body: { reason },
+        body: { reason, adminPassword },
       }),
       invalidatesTags: ['Order', 'Customer', 'Product', 'Account'],
     }),
