@@ -32,11 +32,14 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store/store';
+import { useGetMeQuery } from '../api/userApi';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
 import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
 import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
-import { DeliveryOutboxStatus } from '../components/orders/DeliveryOutboxStatus';
+import { DeliveryOutboxStatus, DeliveryUncertainWarning } from '../components/orders/DeliveryOutboxStatus';
 
 interface OrderStatusConfig {
   label: string;
@@ -94,9 +97,37 @@ export const OrdersPage = () => {
   const [markManuallyDelivered, { isLoading: isMarkingDelivered }] = useMarkManuallyDeliveredMutation();
   const [refundOrder, { isLoading: isRefunding }] = useRefundOrderMutation();
 
+  const { data: meData } = useGetMeQuery();
+  const { user: authUser } = useSelector((state: RootState) => state.auth);
+  // Chỉ để ẩn nút; BE vẫn chặn bằng @PreAuthorize + mật khẩu
+  const isAdmin = (meData || authUser)?.role === 'ADMIN';
+
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [refundTargetOrder, setRefundTargetOrder] = useState<{ id: number; orderCode: string; totalAmount: number; customerName: string } | null>(null);
   const [refundReason, setRefundReason] = useState('');
+  const [acceptCredentialLoss, setAcceptCredentialLoss] = useState(false);
+
+  // Modal duyệt tay đơn chuyển khoản
+  const [confirmTarget, setConfirmTarget] = useState<{ orderCode: string; totalAmount: number } | null>(null);
+  const [confirmReason, setConfirmReason] = useState('');
+  // Mã GD ngân hàng: backend bắt unique, một biên lai chỉ duyệt được một đơn
+  const [confirmBankRef, setConfirmBankRef] = useState('');
+  // Mật khẩu Admin xác nhận, dùng chung cho modal duyệt đơn và hoàn tiền
+  const [stepUpPassword, setStepUpPassword] = useState('');
+
+  const closeConfirmModal = () => {
+    setConfirmTarget(null);
+    setConfirmReason('');
+    setConfirmBankRef('');
+    setStepUpPassword('');
+  };
+
+  const closeRefundModal = () => {
+    setRefundTargetOrder(null);
+    setRefundReason('');
+    setStepUpPassword('');
+    setAcceptCredentialLoss(false);
+  };
 
   // State cho Modal Giao Hàng Thủ Công
   const [manualDeliveryTarget, setManualDeliveryTarget] = useState<{
@@ -122,14 +153,31 @@ export const OrdersPage = () => {
     skip: selectedOrderId === null,
   });
 
-  const handleConfirm = async (orderCode: string) => {
-    if (window.confirm(`Xác nhận đã nhận tiền cho đơn hàng ${orderCode}? Hệ thống sẽ tự động giao hàng (nếu là AUTO).`)) {
-      try {
-        await confirmOrder(orderCode).unwrap();
-        toast.success('Xác nhận thành công!');
-      } catch (err) {
-        toast.error('Lỗi khi xác nhận đơn hàng');
-      }
+  // Danh sách đơn không mang thông tin outbox, nhưng Admin phải thấy cảnh báo "khách có thể đã nhận
+  // tài khoản" TRƯỚC khi bấm xác nhận hoàn tiền -> nạp chi tiết ngay khi mở modal.
+  const { data: refundTargetDetail, isFetching: isRefundDetailLoading } = useGetOrderByIdQuery(
+    refundTargetOrder?.id as number,
+    { skip: !refundTargetOrder },
+  );
+  const refundNeedsRiskAck = Boolean(refundTargetDetail?.deliveryUncertain);
+
+  const handleConfirmSubmit = async () => {
+    if (!confirmTarget) return;
+    if (!confirmBankRef.trim() || !confirmReason.trim() || !stepUpPassword.trim()) {
+      toast.error('Nhập mã giao dịch ngân hàng, lý do và mật khẩu Admin');
+      return;
+    }
+    try {
+      await confirmOrder({
+        orderCode: confirmTarget.orderCode,
+        reason: confirmReason.trim(),
+        bankTransactionRef: confirmBankRef.trim(),
+        adminPassword: stepUpPassword,
+      }).unwrap();
+      toast.success('Xác nhận thành công!');
+      closeConfirmModal();
+    } catch (err: any) {
+      toast.error(err?.data?.message || 'Lỗi khi xác nhận đơn hàng');
     }
   };
 
@@ -172,11 +220,27 @@ export const OrdersPage = () => {
 
   const handleRefundSubmit = async () => {
     if (!refundTargetOrder) return;
+    if (!stepUpPassword.trim()) {
+      toast.error('Vui lòng nhập mật khẩu Admin');
+      return;
+    }
+    if (refundNeedsRiskAck && !acceptCredentialLoss) {
+      toast.error('Phải xác nhận chấp nhận rủi ro mất tài khoản trước khi hoàn tiền');
+      return;
+    }
+    if (refundNeedsRiskAck && !refundReason.trim()) {
+      toast.error('Phải nhập lý do khi hoàn tiền đơn khách có thể đã nhận tài khoản');
+      return;
+    }
     try {
-      const res = await refundOrder({ id: refundTargetOrder.id, reason: refundReason.trim() || undefined }).unwrap();
+      const res = await refundOrder({
+        id: refundTargetOrder.id,
+        reason: refundReason.trim() || undefined,
+        adminPassword: stepUpPassword,
+        acceptPotentialCredentialLoss: refundNeedsRiskAck ? acceptCredentialLoss : undefined,
+      }).unwrap();
       toast.success(res.message || 'Đã hoàn tiền vào ví khách hàng thành công!');
-      setRefundTargetOrder(null);
-      setRefundReason('');
+      closeRefundModal();
     } catch (err: any) {
       toast.error(err?.data?.message || 'Có lỗi xảy ra khi hoàn tiền đơn hàng.');
     }
@@ -420,11 +484,13 @@ ${payload}
                         >
                           <Eye size={16} />
                         </button>
-                        {order.status === 'PENDING' && order.paymentMethod === 'BANK_TRANSFER' && (
+                        {isAdmin && order.status === 'PENDING' && order.paymentMethod === 'BANK_TRANSFER' && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleConfirm(order.orderCode);
+                              setConfirmReason('');
+                              setStepUpPassword('');
+                              setConfirmTarget({ orderCode: order.orderCode, totalAmount: order.totalAmount });
                             }}
                             disabled={isConfirming}
                             className="btn bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600 hover:text-white px-2.5 py-1 text-xs disabled:opacity-50 font-semibold"
@@ -445,6 +511,8 @@ ${payload}
                           </button>
                         )}
                         {((order.status === 'DELIVERY_FAILED' && order.deliveryMode === 'AUTO') ||
+                          // Bot gửi được một phần: Admin kiểm tra chat, gửi bù rồi đánh dấu đã giao
+                          (order.status === 'DELIVERY_REVIEW_REQUIRED' && order.deliveryMode === 'AUTO') ||
                           (order.status === 'PAID_MANUAL_PENDING' && order.deliveryMode === 'MANUAL')) && (
                           <button
                             onClick={(e) => {
@@ -466,7 +534,7 @@ ${payload}
                             Đã giao
                           </button>
                         )}
-                        {['PAID_MANUAL_PENDING', 'PAID_REVIEW_REQUIRED', 'DELIVERY_FAILED', 'DELIVERY_REVIEW_REQUIRED'].includes(order.status) && (
+                        {isAdmin && ['PAID_MANUAL_PENDING', 'PAID_REVIEW_REQUIRED', 'DELIVERY_FAILED', 'DELIVERY_REVIEW_REQUIRED'].includes(order.status) && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -477,6 +545,7 @@ ${payload}
                                 customerName: order.customer.firstName,
                               });
                               setRefundReason('');
+                              setStepUpPassword('');
                             }}
                             disabled={isRefunding}
                             className="btn bg-red-600/20 text-red-300 border border-red-500/30 hover:bg-red-600 hover:text-white px-2.5 py-1 text-xs disabled:opacity-50"
@@ -901,7 +970,7 @@ ${payload}
                 <RotateCcw size={20} />
                 Xác nhận hoàn tiền đơn hàng
               </h3>
-              <button onClick={() => setRefundTargetOrder(null)} className="text-gray-400 hover:text-white p-1 rounded-full">
+              <button onClick={closeRefundModal} className="text-gray-400 hover:text-white p-1 rounded-full">
                 <X size={20} />
               </button>
             </div>
@@ -922,9 +991,32 @@ ${payload}
                 </div>
               </div>
 
+              {isRefundDetailLoading && (
+                <p className="text-xs text-slate-400">Đang kiểm tra trạng thái giao hàng của đơn...</p>
+              )}
+
+              {refundNeedsRiskAck && refundTargetDetail && (
+                <div className="space-y-3">
+                  <DeliveryUncertainWarning order={refundTargetDetail} />
+                  <label className="flex items-start gap-2.5 bg-red-950/40 border border-red-800/50 p-3 rounded-xl cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acceptCredentialLoss}
+                      onChange={(e) => setAcceptCredentialLoss(e.target.checked)}
+                      className="mt-0.5 shrink-0 accent-red-500"
+                    />
+                    <span className="text-sm text-red-200">
+                      Tôi xác nhận đã kiểm tra chat với khách và <b className="text-white">chấp nhận rủi ro</b>: nếu
+                      khách thực sự đã nhận tài khoản thì shop vừa mất tài khoản vừa mất tiền.
+                      Tài khoản đã gửi đi <b className="text-white">không thu hồi được</b>.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Lý do hoàn tiền (Tùy chọn)
+                  Lý do hoàn tiền {refundNeedsRiskAck ? '(*)' : '(Tùy chọn)'}
                 </label>
                 <textarea
                   value={refundReason}
@@ -935,10 +1027,23 @@ ${payload}
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mật khẩu Admin xác nhận (*)
+                </label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={stepUpPassword}
+                  onChange={(e) => setStepUpPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
               <div className="flex justify-end space-x-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setRefundTargetOrder(null)}
+                  onClick={closeRefundModal}
                   className="btn bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 text-sm rounded-lg"
                 >
                   Hủy bỏ
@@ -946,10 +1051,108 @@ ${payload}
                 <button
                   type="button"
                   onClick={handleRefundSubmit}
-                  disabled={isRefunding}
+                  disabled={
+                    isRefunding ||
+                    isRefundDetailLoading ||
+                    !stepUpPassword.trim() ||
+                    (refundNeedsRiskAck && (!acceptCredentialLoss || !refundReason.trim()))
+                  }
                   className="btn bg-red-600 hover:bg-red-500 text-white px-4 py-2 text-sm font-semibold rounded-lg shadow-lg disabled:opacity-50"
                 >
                   {isRefunding ? 'Đang xử lý...' : 'Xác nhận hoàn tiền'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Duyệt Tay Đơn Chuyển Khoản */}
+      {confirmTarget && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-800/50">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2 text-blue-400">
+                <CheckCircle size={20} />
+                Xác nhận đã nhận tiền
+              </h3>
+              <button onClick={closeConfirmModal} className="text-gray-400 hover:text-white p-1 rounded-full">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-950/40 border border-amber-800/50 p-3 rounded-xl text-sm text-amber-300 flex items-start gap-2.5">
+                <AlertTriangle size={20} className="shrink-0 mt-0.5" />
+                <div>
+                  Chỉ duyệt khi đã thấy <b className="text-white">{confirmTarget.totalAmount.toLocaleString()}đ</b> vào tài khoản ngân hàng.
+                  Hệ thống sẽ giao hàng ngay (nếu là AUTO) và lưu tên bạn vào nhật ký kiểm toán.
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mã đơn hàng
+                </label>
+                <div className="font-mono text-white font-semibold bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
+                  {confirmTarget.orderCode}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mã giao dịch ngân hàng (*)
+                </label>
+                <input
+                  type="text"
+                  value={confirmBankRef}
+                  onChange={(e) => setConfirmBankRef(e.target.value)}
+                  placeholder="Ví dụ: FT26258xxxx (mỗi mã chỉ duyệt được 1 đơn)"
+                  maxLength={100}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Lý do (*)
+                </label>
+                <textarea
+                  value={confirmReason}
+                  onChange={(e) => setConfirmReason(e.target.value)}
+                  placeholder="Ví dụ: khách ghi sai nội dung chuyển khoản"
+                  rows={2}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mật khẩu Admin xác nhận (*)
+                </label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={stepUpPassword}
+                  onChange={(e) => setStepUpPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeConfirmModal}
+                  className="btn bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 text-sm rounded-lg"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmit}
+                  disabled={isConfirming || !confirmBankRef.trim() || !confirmReason.trim() || !stepUpPassword.trim()}
+                  className="btn bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 text-sm font-semibold rounded-lg shadow-lg disabled:opacity-50"
+                >
+                  {isConfirming ? 'Đang xử lý...' : 'Xác nhận đã nhận tiền'}
                 </button>
               </div>
             </div>
