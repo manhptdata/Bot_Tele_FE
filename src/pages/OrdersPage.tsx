@@ -39,7 +39,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
 import { ManualDeliveryPanel } from '../components/orders/ManualDeliveryPanel';
 import { FailedAutoDeliveryPanel } from '../components/orders/FailedAutoDeliveryPanel';
-import { DeliveryOutboxStatus } from '../components/orders/DeliveryOutboxStatus';
+import { DeliveryOutboxStatus, DeliveryUncertainWarning } from '../components/orders/DeliveryOutboxStatus';
 
 interface OrderStatusConfig {
   label: string;
@@ -105,6 +105,7 @@ export const OrdersPage = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [refundTargetOrder, setRefundTargetOrder] = useState<{ id: number; orderCode: string; totalAmount: number; customerName: string } | null>(null);
   const [refundReason, setRefundReason] = useState('');
+  const [acceptCredentialLoss, setAcceptCredentialLoss] = useState(false);
 
   // Modal duyệt tay đơn chuyển khoản
   const [confirmTarget, setConfirmTarget] = useState<{ orderCode: string; totalAmount: number } | null>(null);
@@ -125,6 +126,7 @@ export const OrdersPage = () => {
     setRefundTargetOrder(null);
     setRefundReason('');
     setStepUpPassword('');
+    setAcceptCredentialLoss(false);
   };
 
   // State cho Modal Giao Hàng Thủ Công
@@ -150,6 +152,14 @@ export const OrdersPage = () => {
   const { data: orderDetail, isLoading: isDetailLoading } = useGetOrderByIdQuery(selectedOrderId as number, {
     skip: selectedOrderId === null,
   });
+
+  // Danh sách đơn không mang thông tin outbox, nhưng Admin phải thấy cảnh báo "khách có thể đã nhận
+  // tài khoản" TRƯỚC khi bấm xác nhận hoàn tiền -> nạp chi tiết ngay khi mở modal.
+  const { data: refundTargetDetail, isFetching: isRefundDetailLoading } = useGetOrderByIdQuery(
+    refundTargetOrder?.id as number,
+    { skip: !refundTargetOrder },
+  );
+  const refundNeedsRiskAck = Boolean(refundTargetDetail?.deliveryUncertain);
 
   const handleConfirmSubmit = async () => {
     if (!confirmTarget) return;
@@ -214,11 +224,20 @@ export const OrdersPage = () => {
       toast.error('Vui lòng nhập mật khẩu Admin');
       return;
     }
+    if (refundNeedsRiskAck && !acceptCredentialLoss) {
+      toast.error('Phải xác nhận chấp nhận rủi ro mất tài khoản trước khi hoàn tiền');
+      return;
+    }
+    if (refundNeedsRiskAck && !refundReason.trim()) {
+      toast.error('Phải nhập lý do khi hoàn tiền đơn khách có thể đã nhận tài khoản');
+      return;
+    }
     try {
       const res = await refundOrder({
         id: refundTargetOrder.id,
         reason: refundReason.trim() || undefined,
         adminPassword: stepUpPassword,
+        acceptPotentialCredentialLoss: refundNeedsRiskAck ? acceptCredentialLoss : undefined,
       }).unwrap();
       toast.success(res.message || 'Đã hoàn tiền vào ví khách hàng thành công!');
       closeRefundModal();
@@ -972,9 +991,32 @@ ${payload}
                 </div>
               </div>
 
+              {isRefundDetailLoading && (
+                <p className="text-xs text-slate-400">Đang kiểm tra trạng thái giao hàng của đơn...</p>
+              )}
+
+              {refundNeedsRiskAck && refundTargetDetail && (
+                <div className="space-y-3">
+                  <DeliveryUncertainWarning order={refundTargetDetail} />
+                  <label className="flex items-start gap-2.5 bg-red-950/40 border border-red-800/50 p-3 rounded-xl cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={acceptCredentialLoss}
+                      onChange={(e) => setAcceptCredentialLoss(e.target.checked)}
+                      className="mt-0.5 shrink-0 accent-red-500"
+                    />
+                    <span className="text-sm text-red-200">
+                      Tôi xác nhận đã kiểm tra chat với khách và <b className="text-white">chấp nhận rủi ro</b>: nếu
+                      khách thực sự đã nhận tài khoản thì shop vừa mất tài khoản vừa mất tiền.
+                      Tài khoản đã gửi đi <b className="text-white">không thu hồi được</b>.
+                    </span>
+                  </label>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-                  Lý do hoàn tiền (Tùy chọn)
+                  Lý do hoàn tiền {refundNeedsRiskAck ? '(*)' : '(Tùy chọn)'}
                 </label>
                 <textarea
                   value={refundReason}
@@ -1009,7 +1051,12 @@ ${payload}
                 <button
                   type="button"
                   onClick={handleRefundSubmit}
-                  disabled={isRefunding || !stepUpPassword.trim()}
+                  disabled={
+                    isRefunding ||
+                    isRefundDetailLoading ||
+                    !stepUpPassword.trim() ||
+                    (refundNeedsRiskAck && (!acceptCredentialLoss || !refundReason.trim()))
+                  }
                   className="btn bg-red-600 hover:bg-red-500 text-white px-4 py-2 text-sm font-semibold rounded-lg shadow-lg disabled:opacity-50"
                 >
                   {isRefunding ? 'Đang xử lý...' : 'Xác nhận hoàn tiền'}

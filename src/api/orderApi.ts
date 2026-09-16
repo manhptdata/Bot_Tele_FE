@@ -98,7 +98,7 @@ export const orderApi = baseApi.injectEndpoints({
       invalidatesTags: ['Order', 'Account', 'Product'],
     }),
 
-    // 5. Đánh dấu đã giao thủ công cho đơn AUTO bị lỗi
+    // 5. Đánh dấu đã giao thủ công: đơn AUTO bị lỗi, hoặc đơn MANUAL đã chốt mà bot gửi lỗi (giao ngoài bot)
     markManuallyDelivered: builder.mutation<
       { message: string },
       { orderId: number; note?: string }
@@ -111,11 +111,14 @@ export const orderApi = baseApi.injectEndpoints({
       invalidatesTags: ['Order'],
     }),
 
-    refundOrder: builder.mutation<{ message: string; orderCode: string; status: string }, { id: number; reason?: string; adminPassword: string }>({
-      query: ({ id, reason, adminPassword }) => ({
+    refundOrder: builder.mutation<
+      { message: string; orderCode: string; status: string },
+      { id: number; reason?: string; adminPassword: string; acceptPotentialCredentialLoss?: boolean }
+    >({
+      query: ({ id, reason, adminPassword, acceptPotentialCredentialLoss }) => ({
         url: `/admin/orders/${id}/refund`,
         method: 'POST',
-        body: { reason, adminPassword },
+        body: { reason, adminPassword, acceptPotentialCredentialLoss },
       }),
       invalidatesTags: ['Order', 'Customer', 'Product', 'Account'],
     }),
