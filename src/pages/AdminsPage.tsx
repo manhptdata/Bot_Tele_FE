@@ -716,7 +716,7 @@ export const AdminsPage = () => {
                   </div>
                   <p className="text-[10px] text-amber-200/80 leading-relaxed">
                     {isCreatingAdmin && "Bắt buộc xác thực mật khẩu Super Admin khi tạo tài khoản ADMIN mới."}
-                    {isPromotingToAdmin && "Bắt buộc xác thực mật khẩu khi nâng quyền nhân viên lên ADMIN."}
+                    {isPromotingToAdmin && "Chỉ Super Admin được nâng quyền nhân viên lên ADMIN, bắt buộc xác thực mật khẩu."}
                     {isResettingPassword && !isPromotingToAdmin && "Bắt buộc xác thực mật khẩu khi đặt lại mật khẩu cho tài khoản này."}
                   </p>
                 </div>

@@ -116,8 +116,12 @@ export interface OrderDetail {
   manualDeliveryContent?: string;
   manuallyDeliveredBy?: string;
   manuallyDeliveredAt?: string;
-  deliveryOutboxStatus?: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'SENT_REVIEW_REQUIRED' | 'MANUALLY_DELIVERED' | 'CANCELLED_REFUNDED';
+  deliveryOutboxStatus?: 'PENDING' | 'PROCESSING' | 'SENT' | 'FAILED' | 'SENT_REVIEW_REQUIRED' | 'PARTIAL_SENT_REVIEW_REQUIRED' | 'MANUALLY_DELIVERED' | 'CANCELLED_REFUNDED';
   deliveryOutboxError?: string;
+  /** Lần gửi trước không rõ kết quả: khách CÓ THỂ đang giữ tài khoản. Chặn hoàn tiền tự động. */
+  deliveryUncertain?: boolean;
+  deliveryUncertainAt?: string;
+  deliveryUncertainReason?: 'SEND_TIMEOUT_OR_5XX' | 'LOCK_EXPIRED_WHILE_PROCESSING';
   adminNote?: string;
   createdAt: string;
   customer: {

@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
+import { RootState } from '../store/store';
+import { useGetMeQuery } from '../api/userApi';
+import { useGetCustomersQuery } from '../api/customerApi';
 import {
   useGetPaymentEventsQuery,
   useCreditWalletFromEventMutation,
@@ -18,13 +22,33 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// Trạng thái BE: tiền CHƯA áp vào đâu -> Admin được Cộng ví / Ghép đơn
+const RESOLVABLE_STATUSES = ['REVIEW_REQUIRED', 'UNMATCHED'];
+// Tiền đã áp vào đơn, chỉ còn phần thừa chưa có chủ -> chỉ được cộng phần thừa
+const SURPLUS_STATUS = 'SURPLUS_REVIEW_REQUIRED';
+// Tiền đã áp vào đơn nhưng giao hàng cần kiểm tra -> xử lý ở tab Đơn hàng, KHÔNG cộng ví
+const APPLIED_REVIEW_STATUS = 'PAYMENT_APPLIED_REVIEW_REQUIRED';
+
+type EventGroup = 'UNRESOLVED' | 'APPLIED_REVIEW' | 'MANUALLY_RESOLVED' | 'AUTO_RESOLVED';
+
+const groupOf = (status: string): EventGroup => {
+  if (RESOLVABLE_STATUSES.includes(status) || status === SURPLUS_STATUS) return 'UNRESOLVED';
+  if (status === APPLIED_REVIEW_STATUS) return 'APPLIED_REVIEW';
+  if (status.startsWith('RESOLVED_')) return 'MANUALLY_RESOLVED';
+  return 'AUTO_RESOLVED';
+};
+
 export const PaymentEventsPage = () => {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
-  const { data: events = [], isLoading } = useGetPaymentEventsQuery(
-    statusFilter === 'ALL' ? undefined : { status: statusFilter }
-  );
+  const { data: meData } = useGetMeQuery();
+  const { user: authUser } = useSelector((state: RootState) => state.auth);
+  const isAdmin = (meData || authUser)?.role === 'ADMIN';
+
+  // BE chỉ lọc được đúng 1 status nên tải hết rồi lọc theo nhóm ở client
+  const { data: allEvents = [], isLoading } = useGetPaymentEventsQuery();
+  const events = statusFilter === 'ALL' ? allEvents : allEvents.filter((e) => groupOf(e.status) === statusFilter);
 
   const [creditWallet, { isLoading: isCrediting }] = useCreditWalletFromEventMutation();
   const [linkOrder, { isLoading: isLinking }] = useLinkOrderFromEventMutation();
@@ -38,6 +62,40 @@ export const PaymentEventsPage = () => {
   const [linkTarget, setLinkTarget] = useState<PaymentWebhookEvent | null>(null);
   const [orderCodeInput, setOrderCodeInput] = useState<string>('');
   const [linkNoteInput, setLinkNoteInput] = useState<string>('');
+
+  // Mật khẩu Admin xác nhận (dùng chung cho 2 modal)
+  const [stepUpPassword, setStepUpPassword] = useState<string>('');
+
+  // Tra tên khách theo Telegram ID trước khi cho cộng ví, tránh gõ nhầm sang ID của người khác
+  const [debouncedTelegramId, setDebouncedTelegramId] = useState<string>('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedTelegramId(telegramIdInput.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [telegramIdInput]);
+  const isTelegramIdFormat = /^\d+$/.test(debouncedTelegramId);
+  const { data: customerLookup, isFetching: isLookingUpCustomer } = useGetCustomersQuery(
+    { keyword: debouncedTelegramId, page: 0, size: 5 },
+    { skip: !creditTarget || !isTelegramIdFormat }
+  );
+  const matchedCustomer = isTelegramIdFormat
+    ? customerLookup?.content?.find((c) => String(c.telegramId) === debouncedTelegramId)
+    : undefined;
+  const isCustomerConfirmed =
+    !!matchedCustomer && String(matchedCustomer.telegramId) === telegramIdInput.trim() && !isLookingUpCustomer;
+
+  const closeCreditModal = () => {
+    setCreditTarget(null);
+    setTelegramIdInput('');
+    setCreditNoteInput('');
+    setStepUpPassword('');
+  };
+
+  const closeLinkModal = () => {
+    setLinkTarget(null);
+    setOrderCodeInput('');
+    setLinkNoteInput('');
+    setStepUpPassword('');
+  };
 
   // State Sao Chép
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -68,17 +126,28 @@ export const PaymentEventsPage = () => {
       toast.error('Vui lòng nhập Telegram ID hợp lệ (chữ số)');
       return;
     }
+    if (!isCustomerConfirmed) {
+      toast.error('Chưa xác định được khách hàng của Telegram ID này');
+      return;
+    }
+    if (!stepUpPassword.trim()) {
+      toast.error('Vui lòng nhập mật khẩu Admin');
+      return;
+    }
 
     try {
       await creditWallet({
         id: creditTarget.id,
         telegramId: tid,
         note: creditNoteInput.trim() || undefined,
+        adminPassword: stepUpPassword,
       }).unwrap();
-      toast.success(`Đã cộng ${creditTarget.amount.toLocaleString()}đ vào ví của Telegram ID ${tid} thành công!`);
-      setCreditTarget(null);
-      setTelegramIdInput('');
-      setCreditNoteInput('');
+      toast.success(
+        creditTarget.status === SURPLUS_STATUS
+          ? `Đã cộng phần tiền thừa vào ví của Telegram ID ${tid} thành công!`
+          : `Đã cộng ${creditTarget.amount.toLocaleString()}đ vào ví của Telegram ID ${tid} thành công!`
+      );
+      closeCreditModal();
     } catch (err: any) {
       toast.error(err?.data?.message || 'Có lỗi xảy ra khi cộng tiền ví.');
     }
@@ -91,17 +160,20 @@ export const PaymentEventsPage = () => {
       toast.error('Vui lòng nhập Mã đơn hàng (ví dụ: ORD_12345678)');
       return;
     }
+    if (!stepUpPassword.trim()) {
+      toast.error('Vui lòng nhập mật khẩu Admin');
+      return;
+    }
 
     try {
       await linkOrder({
         id: linkTarget.id,
         orderCode: ocode,
         note: linkNoteInput.trim() || undefined,
+        adminPassword: stepUpPassword,
       }).unwrap();
       toast.success(`Đã ghép giao dịch vào đơn hàng ${ocode} thành công!`);
-      setLinkTarget(null);
-      setOrderCodeInput('');
-      setLinkNoteInput('');
+      closeLinkModal();
     } catch (err: any) {
       toast.error(err?.data?.message || 'Có lỗi xảy ra khi ghép đơn hàng.');
     }
@@ -140,7 +212,17 @@ export const PaymentEventsPage = () => {
               }`}
           >
             <AlertCircle size={13} />
-            Chờ xử lý ({events.filter((e) => e.status === 'UNRESOLVED').length})
+            Chờ xử lý ({allEvents.filter((e) => groupOf(e.status) === 'UNRESOLVED').length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('APPLIED_REVIEW')}
+            className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 ${statusFilter === 'APPLIED_REVIEW'
+                ? 'bg-orange-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
+              }`}
+          >
+            <AlertCircle size={13} />
+            Đã áp vào đơn, cần kiểm tra ({allEvents.filter((e) => groupOf(e.status) === 'APPLIED_REVIEW').length})
           </button>
           <button
             onClick={() => setStatusFilter('MANUALLY_RESOLVED')}
@@ -150,7 +232,7 @@ export const PaymentEventsPage = () => {
               }`}
           >
             <CheckCircle size={13} />
-            Đã xử lý thủ công ({events.filter((e) => e.status === 'MANUALLY_RESOLVED').length})
+            Đã xử lý thủ công ({allEvents.filter((e) => groupOf(e.status) === 'MANUALLY_RESOLVED').length})
           </button>
           <button
             onClick={() => setStatusFilter('AUTO_RESOLVED')}
@@ -239,19 +321,26 @@ export const PaymentEventsPage = () => {
                     </td>
                     <td className="p-4">
                       <span
-                        className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 ${ev.status === 'UNRESOLVED'
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1.5 ${groupOf(ev.status) === 'UNRESOLVED'
                             ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-pulse'
-                            : ev.status === 'MANUALLY_RESOLVED'
-                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : groupOf(ev.status) === 'APPLIED_REVIEW'
+                              ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                              : groupOf(ev.status) === 'MANUALLY_RESOLVED'
+                                ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           }`}
+                        title={ev.errorCode ? `${ev.status} · ${ev.errorCode}` : ev.status}
                       >
-                        {ev.status === 'UNRESOLVED' ? <AlertCircle size={12} /> : <CheckCircle size={12} />}
-                        {ev.status === 'UNRESOLVED'
-                          ? 'Treo / Chờ xử lý'
-                          : ev.status === 'MANUALLY_RESOLVED'
-                            ? 'Đã duyệt tay'
-                            : 'Tự động'}
+                        {['UNRESOLVED', 'APPLIED_REVIEW'].includes(groupOf(ev.status)) ? <AlertCircle size={12} /> : <CheckCircle size={12} />}
+                        {ev.status === SURPLUS_STATUS
+                          ? 'Treo tiền thừa'
+                          : groupOf(ev.status) === 'UNRESOLVED'
+                            ? 'Treo / Chờ xử lý'
+                            : groupOf(ev.status) === 'APPLIED_REVIEW'
+                              ? 'Đã áp vào đơn · xử lý ở tab Đơn hàng'
+                              : groupOf(ev.status) === 'MANUALLY_RESOLVED'
+                                ? 'Đã duyệt tay'
+                                : 'Tự động'}
                       </span>
                     </td>
                     <td className="p-4 text-xs text-slate-400 max-w-xs">
@@ -266,12 +355,31 @@ export const PaymentEventsPage = () => {
                     </td>
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {ev.status === 'UNRESOLVED' ? (
+                        {!isAdmin && groupOf(ev.status) === 'UNRESOLVED' ? (
+                          <span className="text-xs text-slate-500 italic">Chỉ Admin được xử lý</span>
+                        ) : ev.status === SURPLUS_STATUS ? (
+                          <button
+                            onClick={() => {
+                              setCreditTarget(ev);
+                              setTelegramIdInput('');
+                              setStepUpPassword('');
+                              setCreditNoteInput(`Cộng tiền thừa từ giao dịch SePay #${ev.providerTransactionId} (đơn ${ev.referenceCode})`);
+                            }}
+                            className="btn bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600 hover:text-white px-2.5 py-1 text-xs flex items-center gap-1 shadow-sm"
+                            title="Chỉ cộng phần tiền thừa so với tổng đơn"
+                          >
+                            <Wallet size={13} />
+                            Cộng tiền thừa
+                          </button>
+                        ) : groupOf(ev.status) === 'APPLIED_REVIEW' ? (
+                          <span className="text-xs text-orange-300/80 italic">Xử lý ở tab Đơn hàng</span>
+                        ) : RESOLVABLE_STATUSES.includes(ev.status) ? (
                           <>
                             <button
                               onClick={() => {
                                 setCreditTarget(ev);
                                 setTelegramIdInput('');
+                                setStepUpPassword('');
                                 setCreditNoteInput(`Cộng tiền từ giao dịch SePay #${ev.providerTransactionId}`);
                               }}
                               className="btn bg-blue-600/20 text-blue-300 border border-blue-500/30 hover:bg-blue-600 hover:text-white px-2.5 py-1 text-xs flex items-center gap-1 shadow-sm"
@@ -284,6 +392,7 @@ export const PaymentEventsPage = () => {
                               onClick={() => {
                                 setLinkTarget(ev);
                                 setOrderCodeInput('');
+                                setStepUpPassword('');
                                 setLinkNoteInput(`Ghép đơn thủ công từ SePay #${ev.providerTransactionId}`);
                               }}
                               className="btn bg-emerald-600/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white px-2.5 py-1 text-xs flex items-center gap-1 shadow-sm"
@@ -315,13 +424,23 @@ export const PaymentEventsPage = () => {
                 <Wallet size={20} />
                 Cộng tiền ví từ giao dịch SePay
               </h3>
-              <button onClick={() => setCreditTarget(null)} className="text-gray-400 hover:text-white p-1 rounded-full">
+              <button onClick={closeCreditModal} className="text-gray-400 hover:text-white p-1 rounded-full">
                 <X size={20} />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-blue-950/40 border border-blue-800/50 p-3 rounded-xl text-sm text-blue-300">
-                Số tiền: <b className="text-white text-base">+{creditTarget.amount.toLocaleString()}đ</b>
+                {creditTarget.status === SURPLUS_STATUS ? (
+                  <>
+                    Giao dịch <b className="text-white">{creditTarget.amount.toLocaleString()}đ</b> đã thanh toán đơn{' '}
+                    <span className="font-mono text-white">{creditTarget.referenceCode}</span>.
+                    <div className="text-amber-300 mt-1">Chỉ phần tiền thừa so với tổng đơn được cộng vào ví.</div>
+                  </>
+                ) : (
+                  <>
+                    Số tiền: <b className="text-white text-base">+{creditTarget.amount.toLocaleString()}đ</b>
+                  </>
+                )}
                 <div className="text-xs text-slate-400 mt-1">
                   Mã giao dịch SePay: <span className="font-mono text-slate-200">{creditTarget.providerTransactionId}</span>
                 </div>
@@ -342,6 +461,20 @@ export const PaymentEventsPage = () => {
                 <p className="text-[11px] text-slate-500 mt-1">
                   Khách hàng có thể lấy Telegram ID bằng cách gõ lệnh /wallet trên Bot.
                 </p>
+                {telegramIdInput.trim() && (
+                  <div className="mt-2 text-xs">
+                    {isLookingUpCustomer || debouncedTelegramId !== telegramIdInput.trim() ? (
+                      <span className="text-slate-400">Đang tra cứu khách hàng...</span>
+                    ) : matchedCustomer ? (
+                      <span className="text-emerald-300">
+                        Người nhận: <b className="text-white">{[matchedCustomer.firstName, matchedCustomer.lastName].filter(Boolean).join(' ') || 'N/A'}</b>
+                        {matchedCustomer.username ? ` (@${matchedCustomer.username})` : ''}. Kiểm tra kỹ trước khi cộng.
+                      </span>
+                    ) : (
+                      <span className="text-red-400">Không tìm thấy khách hàng với Telegram ID này.</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -355,16 +488,29 @@ export const PaymentEventsPage = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mật khẩu Admin xác nhận (*)
+                </label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={stepUpPassword}
+                  onChange={(e) => setStepUpPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
               <div className="flex gap-3 justify-end pt-2">
                 <button
-                  onClick={() => setCreditTarget(null)}
+                  onClick={closeCreditModal}
                   className="btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 text-sm"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   onClick={handleCreditWalletSubmit}
-                  disabled={isCrediting}
+                  disabled={isCrediting || !isCustomerConfirmed || !stepUpPassword.trim()}
                   className="btn bg-blue-600 text-white hover:bg-blue-500 px-5 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
                 >
                   {isCrediting ? 'Đang cộng ví...' : 'Xác nhận cộng ví'}
@@ -384,7 +530,7 @@ export const PaymentEventsPage = () => {
                 <LinkIcon size={20} />
                 Ghép giao dịch vào Đơn hàng
               </h3>
-              <button onClick={() => setLinkTarget(null)} className="text-gray-400 hover:text-white p-1 rounded-full">
+              <button onClick={closeLinkModal} className="text-gray-400 hover:text-white p-1 rounded-full">
                 <X size={20} />
               </button>
             </div>
@@ -421,16 +567,29 @@ export const PaymentEventsPage = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+                  Mật khẩu Admin xác nhận (*)
+                </label>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={stepUpPassword}
+                  onChange={(e) => setStepUpPassword(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3.5 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
               <div className="flex gap-3 justify-end pt-2">
                 <button
-                  onClick={() => setLinkTarget(null)}
+                  onClick={closeLinkModal}
                   className="btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-4 py-2 text-sm"
                 >
                   Hủy bỏ
                 </button>
                 <button
                   onClick={handleLinkOrderSubmit}
-                  disabled={isLinking}
+                  disabled={isLinking || !stepUpPassword.trim()}
                   className="btn bg-emerald-600 text-white hover:bg-emerald-500 px-5 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
                 >
                   {isLinking ? 'Đang ghép đơn...' : 'Xác nhận ghép đơn'}
