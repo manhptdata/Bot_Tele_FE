@@ -1,26 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
 import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react';
-import { Smile, X, Sparkles } from 'lucide-react';
+import { Smile, X, Sparkles, Copy, Check, Plus, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// Danh sách các Icon thương hiệu MMO / Shop tài khoản phổ biến nhất
-const BRAND_PRESETS = [
-  { label: 'Netflix', icon: '🔴' },
-  { label: 'ChatGPT', icon: '🤖' },
-  { label: 'Spotify', icon: '🟢' },
-  { label: 'Youtube', icon: '▶️' },
-  { label: 'Canva', icon: '🎨' },
-  { label: 'Office/Win', icon: '🏢' },
-  { label: 'VPN', icon: '🛡️' },
-  { label: 'Gemini', icon: '💎' },
-  { label: 'Elsa', icon: '🗣️' },
-  { label: 'Zoom', icon: '📹' },
-  { label: 'Capcut', icon: '🎬' },
-  { label: 'Code/Dev', icon: '⚡' },
+// Danh sách các Custom Emoji Telegram phổ biến cho shop tài khoản / MMO
+export interface CustomEmojiPreset {
+  label: string;
+  id: string;
+  icon: string;
+}
+
+export const TELEGRAM_CUSTOM_PRESETS: CustomEmojiPreset[] = [
+  { label: 'Netflix', id: '5368324170671202286', icon: '🔴' },
+  { label: 'Spotify', id: '5370817088187289886', icon: '🟢' },
+  { label: 'YouTube', id: '5371077749450493863', icon: '▶️' },
+  { label: 'Canva', id: '5370908867351825595', icon: '🎨' },
+  { label: 'ChatGPT', id: '5373030386613898236', icon: '🤖' },
+  { label: 'Steam', id: '5372863784840879685', icon: '🎮' },
+  { label: 'Sale', id: '5373059154288065551', icon: '🏷️' },
+  { label: 'Nạp nhanh', id: '5373110294472049969', icon: '⚡' },
+  { label: 'Sao VIP', id: '5373084898129107936', icon: '⭐' },
+  { label: 'Quà tặng', id: '5373151328606368817', icon: '🎁' },
+  { label: 'Bảo hành', id: '5373169728229487212', icon: '🛡️' },
+  { label: 'Lửa Hot', id: '5373187247384310891', icon: '🔥' },
 ];
 
 export const GlobalEmojiPicker: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'custom' | 'unicode'>('custom');
+  const [customIdInput, setCustomIdInput] = useState('');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const lastActiveElementRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -53,12 +62,27 @@ export const GlobalEmojiPicker: React.FC = () => {
   }, [isOpen]);
 
   // 3. Hàm xử lý chèn Emoji vào ô nhập liệu hoặc Copy vào Clipboard
-  const handleInsertEmoji = (emoji: string) => {
+  const handleInsertEmoji = (emojiOrShortcode: string) => {
     const el = lastActiveElementRef.current;
     
+    // Kiểm tra xem ô đang focus có phải ô nhập ID thô (ví dụ ô iconCustomEmojiId ở Sản phẩm / Danh mục)
+    let textToInsert = emojiOrShortcode;
+    if (el) {
+      const isIdField =
+        el.placeholder?.toLowerCase().includes('ví dụ: 5368') ||
+        el.placeholder?.toLowerCase().includes('custom_emoji_id') ||
+        el.name?.toLowerCase().includes('emoji') ||
+        el.id?.toLowerCase().includes('emoji');
+
+      // Nếu là ô nhập ID mà text lại là shortcode [e:ID] -> bóc lấy ID số thuần
+      if (isIdField && textToInsert.startsWith('[e:') && textToInsert.endsWith(']')) {
+        textToInsert = textToInsert.substring(3, textToInsert.length - 1);
+      }
+    }
+
     // Copy vào bộ nhớ đệm (Clipboard)
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(emoji).catch(() => {});
+      navigator.clipboard.writeText(textToInsert).catch(() => {});
     }
 
     if (el && document.body.contains(el)) {
@@ -66,8 +90,8 @@ export const GlobalEmojiPicker: React.FC = () => {
       const end = el.selectionEnd ?? el.value.length;
       const originalValue = el.value;
 
-      // Tính toán chuỗi mới sau khi chèn emoji
-      const newValue = originalValue.substring(0, start) + emoji + originalValue.substring(end);
+      // Tính toán chuỗi mới sau khi chèn
+      const newValue = originalValue.substring(0, start) + textToInsert + originalValue.substring(end);
 
       // Xử lý tương thích với React Controlled Components
       const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -85,16 +109,37 @@ export const GlobalEmojiPicker: React.FC = () => {
       const event = new Event('input', { bubbles: true });
       el.dispatchEvent(event);
 
-      // Đặt lại vị trí con trỏ chuột ngay sau ký tự emoji vừa chèn
+      // Đặt lại vị trí con trỏ chuột ngay sau ký tự vừa chèn
       setTimeout(() => {
         el.focus();
-        el.setSelectionRange(start + emoji.length, start + emoji.length);
+        el.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
       }, 0);
 
-      toast.success(`Đã chèn ${emoji} vào ô nhập!`, { duration: 1500, id: 'emoji-toast' });
+      toast.success(`Đã chèn "${textToInsert}" vào ô nhập!`, { duration: 1500, id: 'emoji-toast' });
     } else {
-      toast.success(`Đã copy ${emoji} vào Clipboard!`, { duration: 1500, id: 'emoji-toast' });
+      toast.success(`Đã copy "${textToInsert}" vào Clipboard!`, { duration: 1500, id: 'emoji-toast' });
     }
+  };
+
+  const handlePickCustomEmoji = (item: CustomEmojiPreset) => {
+    handleInsertEmoji(`[e:${item.id}]`);
+  };
+
+  const handleInsertManualId = () => {
+    const trimmed = customIdInput.trim();
+    if (!trimmed) return;
+    handleInsertEmoji(`[e:${trimmed}]`);
+    setCustomIdInput('');
+  };
+
+  const handleCopyIdOnly = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(id);
+    }
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+    toast.success(`Đã sao chép ID: ${id}`, { duration: 1500, id: 'copy-toast' });
   };
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
@@ -119,43 +164,141 @@ export const GlobalEmojiPicker: React.FC = () => {
 
       {/* Bảng Popup chọn Emoji */}
       {isOpen && (
-        <div className="absolute bottom-16 right-0 w-[350px] sm:w-[380px] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-5 duration-200">
-          {/* Header Widget */}
-          <div className="p-3 bg-slate-800/80 border-b border-slate-700 flex items-center justify-between">
+        <div className="absolute bottom-16 right-0 w-[350px] sm:w-[390px] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-5 duration-200">
+          {/* Header Widget & Tabs */}
+          <div className="p-3 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <Sparkles size={16} className="text-yellow-400" />
-              <span>Emoji Telegram Picker</span>
+              <span>Kho Emoji Telegram</span>
             </div>
-            <span className="text-xs text-slate-400">Click để chèn / copy</span>
-          </div>
-
-          {/* Thanh Icon thương hiệu nhanh */}
-          <div className="p-2 bg-slate-800/40 border-b border-slate-700/60 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-            {BRAND_PRESETS.map((item) => (
+            
+            {/* Tab switch */}
+            <div className="flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-700/60 text-xs">
               <button
-                key={item.label}
                 type="button"
-                onClick={() => handleInsertEmoji(item.icon)}
-                className="px-2 py-1 bg-slate-700/60 hover:bg-blue-600/80 text-xs text-slate-200 rounded-md transition-colors flex items-center gap-1 border border-slate-600/40"
-                title={`Chèn ${item.label}`}
+                onClick={() => setActiveTab('custom')}
+                className={`px-2.5 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
+                  activeTab === 'custom'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
               >
-                <span>{item.icon}</span>
-                <span className="truncate max-w-[70px]">{item.label}</span>
+                <Send size={12} />
+                <span>Tele Custom</span>
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setActiveTab('unicode')}
+                className={`px-2.5 py-1 rounded-md transition-all font-medium flex items-center gap-1 ${
+                  activeTab === 'unicode'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Smile size={12} />
+                <span>Icon Thường</span>
+              </button>
+            </div>
           </div>
 
-          {/* Thư viện Emoji đầy đủ */}
-          <div className="emoji-picker-container">
-            <EmojiPicker
-              onEmojiClick={onEmojiClick}
-              theme={Theme.DARK}
-              lazyLoadEmojis={true}
-              searchPlaceholder="Tìm kiếm emoji (vd: fire, netflix, robot...)"
-              width="100%"
-              height={380}
-            />
-          </div>
+          {/* TAB 1: TELEGRAM CUSTOM EMOJI */}
+          {activeTab === 'custom' && (
+            <div className="p-3 space-y-3 max-h-[440px] overflow-y-auto">
+              {/* Hộp nhập ID thủ công */}
+              <div>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1.5 flex items-center justify-between">
+                  <span>Dán mã ID Custom Emoji mới:</span>
+                  <span className="text-[10px] text-blue-400 font-mono">Mẫu: [e:ID]</span>
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: 5368324170671202286"
+                    value={customIdInput}
+                    onChange={(e) => setCustomIdInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleInsertManualId();
+                      }
+                    }}
+                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleInsertManualId}
+                    disabled={!customIdInput.trim()}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs font-medium flex items-center gap-1 transition-all shrink-0"
+                  >
+                    <Plus size={13} />
+                    <span>Chèn</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Danh sách icon thương hiệu thông dụng */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
+                    Icon Hot Của Shop (Click để chèn)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {TELEGRAM_CUSTOM_PRESETS.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handlePickCustomEmoji(item)}
+                      className="group flex items-center justify-between p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-blue-500/50 cursor-pointer transition-all text-xs"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base shrink-0">{item.icon}</span>
+                        <div className="min-w-0">
+                          <div className="text-slate-200 truncate font-semibold text-[11px]">
+                            {item.label}
+                          </div>
+                          <div className="text-[9px] text-slate-500 font-mono truncate">
+                            {item.id.substring(0, 7)}...
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleCopyIdOnly(e, item.id)}
+                        className="opacity-60 group-hover:opacity-100 p-1 text-slate-400 hover:text-white rounded transition-opacity"
+                        title="Chỉ sao chép ID"
+                      >
+                        {copiedId === item.id ? (
+                          <Check size={12} className="text-emerald-400" />
+                        ) : (
+                          <Copy size={12} />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-[10px] text-slate-400 bg-slate-800/40 p-2 rounded-lg border border-slate-700/50 space-y-1">
+                <p>💡 <b>Cơ chế thông minh:</b></p>
+                <p>• Nếu đang ở ô <b>Soạn tin nhắn / Lời chào</b>: Chèn mã <code>[e:ID]</code>.</p>
+                <p>• Nếu đang ở ô <b>Icon Sản phẩm / Danh mục</b>: Tự điền dãy số ID thô.</p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: UNICODE EMOJI PICKER */}
+          {activeTab === 'unicode' && (
+            <div className="emoji-picker-container">
+              <EmojiPicker
+                onEmojiClick={onEmojiClick}
+                theme={Theme.DARK}
+                lazyLoadEmojis={true}
+                searchPlaceholder="Tìm kiếm emoji (vd: fire, netflix, robot...)"
+                width="100%"
+                height={380}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
