@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react';
-import { Smile, X, Sparkles, Copy, Check, Plus, Send } from 'lucide-react';
+import { Smile, X, Sparkles, Copy, Check, Send, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Danh sách các Custom Emoji Telegram phổ biến cho shop tài khoản / MMO
@@ -30,13 +30,18 @@ export const GlobalEmojiPicker: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'custom' | 'unicode'>('custom');
   const [customIdInput, setCustomIdInput] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isCopiedCode, setIsCopiedCode] = useState(false);
   const lastActiveElementRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   // 1. Theo dõi con trỏ chuột: Lưu lại ô input/textarea cuối cùng mà admin vừa click vào
+  // CHÚ Ý: Bỏ qua nếu click vào các ô input nằm BÊN TRONG chính cái popup picker này!
   useEffect(() => {
     const handleFocusIn = (e: FocusEvent) => {
       const target = e.target;
+      if (pickerRef.current && pickerRef.current.contains(target as Node)) {
+        return; // Không cướp focus nếu đang thao tác trong popup
+      }
       if (
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement
@@ -61,7 +66,7 @@ export const GlobalEmojiPicker: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // 3. Hàm xử lý chèn Emoji vào ô nhập liệu hoặc Copy vào Clipboard
+  // 3. Hàm xử lý chèn Emoji trực tiếp vào ô đang focus
   const handleInsertEmoji = (emojiOrShortcode: string) => {
     const el = lastActiveElementRef.current;
     
@@ -80,7 +85,7 @@ export const GlobalEmojiPicker: React.FC = () => {
       }
     }
 
-    // Copy vào bộ nhớ đệm (Clipboard)
+    // Luôn sao chép vào bộ nhớ đệm (Clipboard) để phòng hờ
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(textToInsert).catch(() => {});
     }
@@ -105,7 +110,7 @@ export const GlobalEmojiPicker: React.FC = () => {
         el.value = newValue;
       }
 
-      // Kích hoạt event input để React Hook Form / useState nhận diện cập nhật state
+      // Kích hoạt event input để React nhận diện cập nhật state
       const event = new Event('input', { bubbles: true });
       el.dispatchEvent(event);
 
@@ -115,21 +120,32 @@ export const GlobalEmojiPicker: React.FC = () => {
         el.setSelectionRange(start + textToInsert.length, start + textToInsert.length);
       }, 0);
 
-      toast.success(`Đã chèn "${textToInsert}" vào ô nhập!`, { duration: 1500, id: 'emoji-toast' });
+      toast.success(`Đã chèn và copy "${textToInsert}"!`, { duration: 2000, id: 'emoji-toast' });
     } else {
-      toast.success(`Đã copy "${textToInsert}" vào Clipboard!`, { duration: 1500, id: 'emoji-toast' });
+      toast.success(`Đã copy "${textToInsert}"! Bạn có thể bấm Ctrl+V để dán`, { duration: 2500, id: 'emoji-toast' });
     }
   };
 
-  const handlePickCustomEmoji = (item: CustomEmojiPreset) => {
-    handleInsertEmoji(`[e:${item.id}]`);
-  };
-
-  const handleInsertManualId = () => {
+  // 4. Cơ chế Copy-First: Sao chép đúng mẫu [e:ID] vào Clipboard
+  const handleCopyFormattedCode = () => {
     const trimmed = customIdInput.trim();
     if (!trimmed) return;
-    handleInsertEmoji(`[e:${trimmed}]`);
-    setCustomIdInput('');
+    const formattedCode = `[e:${trimmed}]`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(formattedCode);
+    }
+    setIsCopiedCode(true);
+    setTimeout(() => setIsCopiedCode(false), 2000);
+    toast.success(`Đã sao chép "${formattedCode}"! Giờ bạn chỉ cần bấm Ctrl+V để dán`, {
+      duration: 3000,
+      id: 'copy-formatted',
+    });
+  };
+
+  // 5. Bấm vào icon có sẵn: Vừa copy [e:ID] vừa thử chèn vào ô đang gõ
+  const handlePickCustomEmoji = (item: CustomEmojiPreset) => {
+    const code = `[e:${item.id}]`;
+    handleInsertEmoji(code);
   };
 
   const handleCopyIdOnly = (e: React.MouseEvent, id: string) => {
@@ -145,6 +161,8 @@ export const GlobalEmojiPicker: React.FC = () => {
   const onEmojiClick = (emojiData: EmojiClickData) => {
     handleInsertEmoji(emojiData.emoji);
   };
+
+  const formattedPreview = customIdInput.trim() ? `[e:${customIdInput.trim()}]` : '[e:DÃY_SỐ_ID]';
 
   return (
     <div ref={pickerRef} className="fixed bottom-6 right-6 z-50">
@@ -203,35 +221,51 @@ export const GlobalEmojiPicker: React.FC = () => {
 
           {/* TAB 1: TELEGRAM CUSTOM EMOJI */}
           {activeTab === 'custom' && (
-            <div className="p-3 space-y-3 max-h-[440px] overflow-y-auto">
-              {/* Hộp nhập ID thủ công */}
-              <div>
-                <label className="block text-[11px] font-medium text-slate-400 mb-1.5 flex items-center justify-between">
-                  <span>Dán mã ID Custom Emoji mới:</span>
-                  <span className="text-[10px] text-blue-400 font-mono">Mẫu: [e:ID]</span>
-                </label>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    placeholder="Ví dụ: 5368324170671202286"
-                    value={customIdInput}
-                    onChange={(e) => setCustomIdInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleInsertManualId();
-                      }
-                    }}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-500"
-                  />
+            <div className="p-3 space-y-3 max-h-[460px] overflow-y-auto">
+              {/* BỘ TẠO & SAO CHÉP MÃ CHUẨN [e:ID] */}
+              <div className="bg-slate-800/70 p-3 rounded-xl border border-slate-700 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-slate-300">
+                    Dán ID icon vào đây để lấy mã:
+                  </span>
+                  <span className="text-[10px] text-blue-400 font-mono">Chuẩn: [e:ID]</span>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Dán ID từ bot (vd: 5368324170671202286)"
+                  value={customIdInput}
+                  onChange={(e) => setCustomIdInput(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-slate-500"
+                />
+
+                {/* Box hiển thị mã chuẩn & nút Sao chép to rõ */}
+                <div className="flex items-center justify-between gap-2 pt-0.5">
+                  <div className="flex-1 bg-slate-900/90 px-2.5 py-1.5 rounded-lg border border-slate-700/80 font-mono text-xs text-blue-300 font-semibold truncate select-all">
+                    {formattedPreview}
+                  </div>
+
+                  {/* NÚT SAO CHÉP CHÍNH (COPY-FIRST) */}
                   <button
                     type="button"
-                    onClick={handleInsertManualId}
+                    onClick={handleCopyFormattedCode}
                     disabled={!customIdInput.trim()}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs font-medium flex items-center gap-1 transition-all shrink-0"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shrink-0 active:scale-95"
+                    title="Bấm để copy mã [e:ID] vào bộ nhớ tạm rồi Ctrl+V vào bài viết"
                   >
-                    <Plus size={13} />
-                    <span>Chèn</span>
+                    {isCopiedCode ? <Check size={13} className="text-emerald-300" /> : <Copy size={13} />}
+                    <span>{isCopiedCode ? 'Đã copy!' : 'Sao chép mã'}</span>
+                  </button>
+
+                  {/* Nút phụ: Thử chèn trực tiếp */}
+                  <button
+                    type="button"
+                    onClick={() => handleInsertEmoji(`[e:${customIdInput.trim()}]`)}
+                    disabled={!customIdInput.trim()}
+                    className="p-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 rounded-lg text-xs transition-all shrink-0"
+                    title="Tự động điền vào ô văn bản đang gõ"
+                  >
+                    <Zap size={13} className="text-yellow-400" />
                   </button>
                 </div>
               </div>
@@ -240,7 +274,7 @@ export const GlobalEmojiPicker: React.FC = () => {
               <div className="space-y-1.5 pt-1 border-t border-slate-800">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">
-                    Icon Hot Của Shop (Click để chèn)
+                    Icon Hot Của Shop (Click là tự copy [e:ID])
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -249,6 +283,7 @@ export const GlobalEmojiPicker: React.FC = () => {
                       key={item.id}
                       onClick={() => handlePickCustomEmoji(item)}
                       className="group flex items-center justify-between p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-blue-500/50 cursor-pointer transition-all text-xs"
+                      title={`Click để tự động copy mã [e:${item.id}]`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-base shrink-0">{item.icon}</span>
@@ -257,7 +292,7 @@ export const GlobalEmojiPicker: React.FC = () => {
                             {item.label}
                           </div>
                           <div className="text-[9px] text-slate-500 font-mono truncate">
-                            {item.id.substring(0, 7)}...
+                            [e:{item.id.substring(0, 5)}...]
                           </div>
                         </div>
                       </div>
@@ -265,7 +300,7 @@ export const GlobalEmojiPicker: React.FC = () => {
                         type="button"
                         onClick={(e) => handleCopyIdOnly(e, item.id)}
                         className="opacity-60 group-hover:opacity-100 p-1 text-slate-400 hover:text-white rounded transition-opacity"
-                        title="Chỉ sao chép ID"
+                        title="Chỉ sao chép ID số thuần"
                       >
                         {copiedId === item.id ? (
                           <Check size={12} className="text-emerald-400" />
@@ -278,10 +313,10 @@ export const GlobalEmojiPicker: React.FC = () => {
                 </div>
               </div>
 
-              <div className="text-[10px] text-slate-400 bg-slate-800/40 p-2 rounded-lg border border-slate-700/50 space-y-1">
-                <p>💡 <b>Cơ chế thông minh:</b></p>
-                <p>• Nếu đang ở ô <b>Soạn tin nhắn / Lời chào</b>: Chèn mã <code>[e:ID]</code>.</p>
-                <p>• Nếu đang ở ô <b>Icon Sản phẩm / Danh mục</b>: Tự điền dãy số ID thô.</p>
+              <div className="text-[10px] text-slate-400 bg-slate-800/40 p-2.5 rounded-lg border border-slate-700/50 space-y-1">
+                <p className="text-blue-400 font-medium">📋 <b>Cách dùng đơn giản nhất:</b></p>
+                <p>1. Bấm vào icon bạn thích (hoặc dán ID mới rồi bấm <b>Sao chép mã</b>).</p>
+                <p>2. Quay lại ô soạn tin và bấm <b>Ctrl + V</b> để dán mã vào bài viết!</p>
               </div>
             </div>
           )}
