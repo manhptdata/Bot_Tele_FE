@@ -33,7 +33,7 @@ fe_admin/
 └── package.json
 ```
 
-## ⚙️ Cài đặt và Chạy thử (Local Development)
+## ⚙️ Cài đặt và Chạy thử (Local Development) 
 
 ### Yêu cầu tiên quyết:
 - Đã cài đặt **Node.js** (Khuyên dùng v18 hoặc v20+).
