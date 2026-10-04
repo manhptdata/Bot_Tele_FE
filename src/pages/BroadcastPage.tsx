@@ -7,9 +7,17 @@ export const BroadcastPage = () => {
   const [imageUrl, setImageUrl] = useState('');
   const [sendBroadcast, { isLoading }] = useSendBroadcastMutation();
 
+  const maxChars = imageUrl.trim() ? 1024 : 4096;
+  const isOverLimit = message.length > maxChars;
+
   const handleSend = async () => {
     if (!message.trim()) {
       toast.error('Vui lòng nhập nội dung thông báo');
+      return;
+    }
+
+    if (isOverLimit) {
+      toast.error(`Nội dung đã vượt quá giới hạn ${maxChars} ký tự của Telegram`);
       return;
     }
 
@@ -53,15 +61,30 @@ export const BroadcastPage = () => {
           <h2 className="text-xl font-semibold text-white mb-4">Soạn nội dung</h2>
           
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Nội dung tin nhắn (*)
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Nội dung tin nhắn (*)
+              </label>
+              <span className="text-[11px] text-slate-400 italic">
+                Hỗ trợ *đậm*, _nghiêng_ và [e:ID]
+              </span>
+            </div>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               className="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[200px]"
-              placeholder="Nhập thông báo gửi tới toàn bộ khách hàng... Hỗ trợ in đậm (*chữ*), in nghiêng (_chữ_)"
+              placeholder="Nhập thông báo gửi tới toàn bộ khách hàng... Hỗ trợ in đậm (*chữ*), in nghiêng (_chữ_), và mã [e:ID] (mở nút Emoji góc phải dưới để chọn nhanh)"
             />
+            <div className="flex items-center justify-between mt-1.5 text-xs">
+              <span className={isOverLimit ? 'text-rose-400 font-bold' : 'text-slate-400'}>
+                {message.length} / {maxChars} ký tự {imageUrl.trim() ? '(Caption ảnh tối đa 1024)' : '(Tin nhắn tối đa 4096)'}
+              </span>
+              {isOverLimit && (
+                <span className="text-rose-400 font-medium">
+                  ⚠️ Vượt quá giới hạn {maxChars} ký tự của Telegram!
+                </span>
+              )}
+            </div>
           </div>
 
           <div>
@@ -76,13 +99,13 @@ export const BroadcastPage = () => {
               placeholder="https://example.com/banner.jpg"
             />
             <p className="text-xs text-slate-400 mt-2">
-              Nếu nhập Link Ảnh, khách hàng sẽ nhận được 1 ảnh kèm theo nội dung mô tả bên dưới.
+              Nếu nhập Link Ảnh, khách hàng sẽ nhận được 1 ảnh kèm theo nội dung mô tả bên dưới (Caption tối đa 1024 ký tự).
             </p>
           </div>
 
           <button
             onClick={handleSend}
-            disabled={isLoading || !message.trim()}
+            disabled={isLoading || !message.trim() || isOverLimit}
             className="w-full py-3 bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 border border-red-500/50 rounded-lg font-medium transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
@@ -126,7 +149,22 @@ export const BroadcastPage = () => {
                   )}
                   {message && (
                     <div className="text-white text-sm whitespace-pre-wrap break-words">
-                      {message}
+                      {message.split(/(\[e:\d{10,25}\])/g).map((part, idx) => {
+                        if (part.startsWith('[e:') && part.endsWith(']')) {
+                          const id = part.substring(3, part.length - 1);
+                          return (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded bg-blue-500/20 text-blue-300 text-xs border border-blue-500/40 font-mono shadow-sm"
+                              title={`Telegram Custom Emoji ID: ${id}`}
+                            >
+                              <span>✨</span>
+                              <span className="text-[10px] text-blue-400 font-bold">Emoji</span>
+                            </span>
+                          );
+                        }
+                        return part;
+                      })}
                     </div>
                   )}
                   <div className="text-[10px] text-slate-400 text-right mt-1">10:00 AM</div>
