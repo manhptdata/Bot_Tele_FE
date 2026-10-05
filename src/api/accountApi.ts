@@ -10,6 +10,15 @@ export interface AccountQueryParams {
   size?: number;
 }
 
+export interface AccountBulkDeleteRequest {
+  accountIds: number[];
+}
+
+export interface AccountBulkDeleteResponse {
+  deletedCount: number;
+  deletedIds: number[];
+}
+
 export const accountApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getAccounts: builder.query<PageResponse<Account>, AccountQueryParams | void>({
@@ -54,6 +63,14 @@ export const accountApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ['Account', 'Product'],
     }),
+    deleteAccountsBulk: builder.mutation<AccountBulkDeleteResponse, AccountBulkDeleteRequest>({
+      query: (body) => ({
+        url: '/accounts/bulk-delete',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['Account', 'Product'],
+    }),
   }),
 });
 
@@ -62,4 +79,5 @@ export const {
   useAddBulkAccountsMutation,
   useImportExcelMutation,
   useDeleteAccountMutation,
+  useDeleteAccountsBulkMutation,
 } = accountApi;
