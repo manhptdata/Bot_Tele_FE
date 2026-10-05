@@ -7,6 +7,8 @@ interface PaginationProps {
   totalElements: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  pageSizeOptions?: number[];
 }
 
 export const Pagination: React.FC<PaginationProps> = ({
@@ -15,8 +17,10 @@ export const Pagination: React.FC<PaginationProps> = ({
   totalElements,
   pageSize,
   onPageChange,
+  onPageSizeChange,
+  pageSizeOptions = [10, 25, 50, 100],
 }) => {
-  if (totalPages <= 1) return null;
+  if (totalPages <= 1 && !onPageSizeChange) return null;
 
   const getPageNumbers = () => {
     const pages = [];
@@ -48,10 +52,27 @@ export const Pagination: React.FC<PaginationProps> = ({
 
   return (
     <div className="flex flex-col sm:flex-row items-center justify-between px-4 py-3 bg-slate-800/30 border-t border-slate-700/50">
-      <div className="text-sm text-slate-400 mb-4 sm:mb-0">
+      <div className="flex flex-wrap items-center gap-3 text-sm text-slate-400 mb-4 sm:mb-0">
         Hiển thị <span className="font-semibold text-white">{startItem}</span> - <span className="font-semibold text-white">{endItem}</span> trong tổng số <span className="font-semibold text-white">{totalElements}</span> bản ghi
+        {onPageSizeChange && (
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            Hiển thị
+            <select
+              value={pageSize}
+              onChange={(event) => onPageSizeChange(Number(event.target.value))}
+              className="rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              aria-label="Số bản ghi trên mỗi trang"
+            >
+              {pageSizeOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+            / trang
+          </label>
+        )}
       </div>
       
+      {totalPages > 1 && (
       <div className="flex items-center space-x-1">
         <button
           onClick={() => onPageChange(0)}
@@ -97,6 +118,7 @@ export const Pagination: React.FC<PaginationProps> = ({
           <ChevronsRight size={18} />
         </button>
       </div>
+      )}
     </div>
   );
 };
