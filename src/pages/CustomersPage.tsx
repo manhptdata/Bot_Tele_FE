@@ -65,7 +65,7 @@ export const CustomersPage: React.FC = () => {
   const [keyword, setKeyword] = useState('');
   const [statusTab, setStatusTab] = useState<'ACTIVE' | 'DELETED' | 'ALL'>('ACTIVE');
   const [page, setPage] = useState(0);
-  const size = 10;
+  const [pageSize, setPageSize] = useState(10);
 
   const isDeletedParam =
     statusTab === 'ACTIVE' ? false : statusTab === 'DELETED' ? true : undefined;
@@ -74,7 +74,7 @@ export const CustomersPage: React.FC = () => {
     keyword: keyword.trim() || undefined,
     isDeleted: isDeletedParam,
     page,
-    size,
+    size: pageSize,
   });
 
   const [softDeleteCustomer] = useSoftDeleteCustomerMutation();
@@ -90,6 +90,12 @@ export const CustomersPage: React.FC = () => {
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize);
+    setPage(0);
+    setSelectedIds([]);
+  };
 
   // Bộ đếm ngược gửi lại OTP
   React.useEffect(() => {
@@ -444,7 +450,7 @@ export const CustomersPage: React.FC = () => {
           </table>
         </div>
 
-        {data && data.totalPages > 1 && (
+        {data && (
           <Pagination
             currentPage={data.pageNumber}
             totalPages={data.totalPages}
@@ -454,6 +460,7 @@ export const CustomersPage: React.FC = () => {
               setPage(p);
               setSelectedIds([]);
             }}
+            onPageSizeChange={handlePageSizeChange}
           />
         )}
       </div>

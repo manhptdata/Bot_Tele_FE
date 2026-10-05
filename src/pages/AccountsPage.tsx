@@ -12,6 +12,7 @@ export const AccountsPage = () => {
   const productIdFromUrl = searchParams.get('productId');
 
   const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProductId, setFilterProductId] = useState<string>(productIdFromUrl ?? '');
   const [filterStatus, setFilterStatus] = useState<string>('');
@@ -30,7 +31,7 @@ export const AccountsPage = () => {
 
   const { data: pageResponse, isLoading: accountsLoading } = useGetAccountsQuery({
     page,
-    size: 10,
+    size: pageSize,
     keyword: debouncedSearchTerm,
     productId: filterProductId ? Number(filterProductId) : undefined,
     status: filterStatus || undefined
@@ -75,7 +76,12 @@ export const AccountsPage = () => {
   useEffect(() => {
     setSelectedAccountIds([]);
     setShowBulkDeleteConfirm(false);
-  }, [page, debouncedSearchTerm, filterProductId, filterStatus]);
+  }, [page, pageSize, debouncedSearchTerm, filterProductId, filterStatus]);
+
+  const handlePageSizeChange = (nextPageSize: number) => {
+    setPageSize(nextPageSize);
+    setPage(0);
+  };
 
   const autoProducts = products.filter(p => p.deliveryMode === 'AUTO');
   const filteredAutoProducts = autoProducts.filter(p => {
@@ -427,6 +433,7 @@ export const AccountsPage = () => {
               totalElements={pageResponse.totalElements}
               pageSize={pageResponse.pageSize}
               onPageChange={setPage}
+              onPageSizeChange={handlePageSizeChange}
             />
           )}
         </div>
