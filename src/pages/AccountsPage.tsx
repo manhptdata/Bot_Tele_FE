@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useGetAccountsQuery, useDeleteAccountMutation, useImportExcelMutation, useAddBulkAccountsMutation } from '../api/accountApi';
+import { useGetAccountsQuery, useDeleteAccountMutation, useDeleteAccountsBulkMutation, useImportExcelMutation, useAddBulkAccountsMutation } from '../api/accountApi';
 import { useGetProductsQuery } from '../api/productApi';
-import { Users, Upload, Trash2, Search, Filter, Eye, X, RotateCcw, ChevronDown, ShieldCheck } from 'lucide-react';
+import { Users, Upload, Trash2, Search, Filter, Eye, X, RotateCcw, ChevronDown, ShieldCheck, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Pagination } from '../components/ui/Pagination';
 import { useDebounce } from '../hooks/useDebounce';
@@ -15,6 +15,9 @@ export const AccountsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterProductId, setFilterProductId] = useState<string>(productIdFromUrl ?? '');
   const [filterStatus, setFilterStatus] = useState<string>('');
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   useEffect(() => {
@@ -39,6 +42,7 @@ export const AccountsPage = () => {
   const products = productPage?.content || [];
   
   const [deleteAccount] = useDeleteAccountMutation();
+  const [deleteAccountsBulk, { isLoading: isBulkDeleting }] = useDeleteAccountsBulkMutation();
   const [importExcel, { isLoading: isImporting }] = useImportExcelMutation();
   
   const [activeTab, setActiveTab] = useState<'LIST' | 'IMPORT'>('LIST');
@@ -56,6 +60,22 @@ export const AccountsPage = () => {
   const [viewAccount, setViewAccount] = useState<any | null>(null);
 
   const [addBulkAccounts, { isLoading: isAddingManual }] = useAddBulkAccountsMutation();
+
+  const deletableAccounts = accounts.filter((account) => account.status === 'AVAILABLE');
+  const deletableIds = deletableAccounts.map((account) => account.id);
+  const allDeletableSelected = deletableIds.length > 0 && deletableIds.every((id) => selectedAccountIds.includes(id));
+  const someDeletableSelected = !allDeletableSelected && deletableIds.some((id) => selectedAccountIds.includes(id));
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someDeletableSelected;
+    }
+  }, [someDeletableSelected]);
+
+  useEffect(() => {
+    setSelectedAccountIds([]);
+    setShowBulkDeleteConfirm(false);
+  }, [page, debouncedSearchTerm, filterProductId, filterStatus]);
 
   const autoProducts = products.filter(p => p.deliveryMode === 'AUTO');
   const filteredAutoProducts = autoProducts.filter(p => {
@@ -114,9 +134,42 @@ export const AccountsPage = () => {
       try {
         await deleteAccount(id).unwrap();
         toast.success('Đã xóa account');
-      } catch (err) {
-        toast.error('Lỗi khi xóa account');
+      } catch (err: any) {
+        toast.error(err?.data?.message || 'Lỗi khi xóa account');
       }
+    }
+  };
+
+  const handleToggleAccount = (accountId: number, checked: boolean) => {
+    setSelectedAccountIds((currentIds) => {
+      if (checked) {
+        return currentIds.includes(accountId) ? currentIds : [...currentIds, accountId];
+      }
+      return currentIds.filter((id) => id !== accountId);
+    });
+  };
+
+  const handleToggleAllCurrentPage = (checked: boolean) => {
+    setSelectedAccountIds(checked ? deletableIds : []);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedAccountIds.length === 0 || isBulkDeleting) return;
+
+    try {
+      const result = await deleteAccountsBulk({ accountIds: selectedAccountIds }).unwrap();
+      toast.success(`Đã xóa ${result.deletedCount} account chưa bán`);
+      setSelectedAccountIds([]);
+      setShowBulkDeleteConfirm(false);
+    } catch (err: any) {
+      const conflicts = err?.data?.data?.conflicts;
+      if (err?.status === 409 && Array.isArray(conflicts) && conflicts.length > 0) {
+        const conflictedIds = conflicts.map((item: { id: number }) => `#${item.id}`).join(', ');
+        toast.error(`Không thể xóa. Account đã đổi trạng thái: ${conflictedIds}`);
+      } else {
+        toast.error(err?.data?.message || 'Không thể xóa các account đã chọn');
+      }
+      setShowBulkDeleteConfirm(false);
     }
   };
 
@@ -260,11 +313,38 @@ export const AccountsPage = () => {
               </select>
             </div>
           </div>
-          <div className="overflow-x-auto">
+           {selectedAccountIds.length > 0 && (
+             <div className="px-4 py-3 border-b border-slate-700/50 bg-red-500/5 flex items-center justify-between gap-3">
+               <span className="text-sm text-slate-300">
+                 Đã chọn <strong className="text-white">{selectedAccountIds.length}</strong> account chưa bán trên trang này
+               </span>
+               <button
+                 type="button"
+                 onClick={() => setShowBulkDeleteConfirm(true)}
+                 disabled={isBulkDeleting}
+                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold disabled:opacity-50"
+               >
+                 <Trash2 size={16} />
+                 Xóa {selectedAccountIds.length} account
+               </button>
+             </div>
+           )}
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-slate-700/50 bg-slate-800/30">
-                  <th className="p-4 font-semibold text-slate-300">ID</th>
+                   <th className="p-4 w-12">
+                     <input
+                       ref={selectAllRef}
+                       type="checkbox"
+                       aria-label="Chọn tất cả account có thể xóa trên trang"
+                       checked={allDeletableSelected}
+                       disabled={deletableIds.length === 0}
+                       onChange={(event) => handleToggleAllCurrentPage(event.target.checked)}
+                       className="h-4 w-4 rounded border-slate-600 disabled:opacity-30"
+                     />
+                   </th>
+                   <th className="p-4 font-semibold text-slate-300">ID</th>
                   <th className="p-4 font-semibold text-slate-300">Dữ liệu (Tài khoản)</th>
                   <th className="p-4 font-semibold text-slate-300">Trạng thái</th>
                   <th className="p-4 font-semibold text-slate-300">Ngày bán</th>
@@ -274,11 +354,11 @@ export const AccountsPage = () => {
               <tbody>
                 {accountsLoading ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">Đang tải dữ liệu...</td>
+                    <td colSpan={6} className="p-8 text-center text-slate-500">Đang tải dữ liệu...</td>
                   </tr>
                 ) : accounts.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-slate-500">
+                    <td colSpan={6} className="p-8 text-center text-slate-500">
                       <div className="flex flex-col items-center">
                         <Users size={48} className="mb-2 opacity-20" />
                         <p>Kho đang trống</p>
@@ -287,7 +367,18 @@ export const AccountsPage = () => {
                   </tr>
                 ) : (
                   accounts.slice(0, 100).map((acc) => (
-                    <tr key={acc.id} className="border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors">
+                    <tr key={acc.id} className={`border-b border-slate-700/20 transition-colors ${selectedAccountIds.includes(acc.id) ? 'bg-blue-500/10' : 'hover:bg-slate-800/30'}`}>
+                      <td className="p-4">
+                        <input
+                          type="checkbox"
+                          aria-label={`Chọn account #${acc.id}`}
+                          checked={selectedAccountIds.includes(acc.id)}
+                          disabled={acc.status !== 'AVAILABLE'}
+                          title={acc.status === 'AVAILABLE' ? 'Chọn để xóa' : 'Chỉ account AVAILABLE mới được xóa'}
+                          onChange={(event) => handleToggleAccount(acc.id, event.target.checked)}
+                          className="h-4 w-4 rounded border-slate-600 disabled:opacity-30"
+                        />
+                      </td>
                       <td className="p-4 text-slate-400 font-mono">#{acc.id}</td>
                       <td className="p-4 font-mono text-sm text-blue-300">
                         <div className="truncate max-w-[200px]">{Array.isArray(acc.accountData) ? acc.accountData.join(' | ') : acc.accountData}</div>
@@ -312,13 +403,15 @@ export const AccountsPage = () => {
                         >
                           <Eye size={16} />
                         </button>
-                        <button 
-                          onClick={() => handleDelete(acc.id)}
-                          className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
-                          title="Xóa"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {acc.status === 'AVAILABLE' && (
+                          <button
+                            onClick={() => handleDelete(acc.id)}
+                            className="p-2 text-slate-400 hover:text-red-400 hover:bg-red-400/10 rounded transition-colors"
+                            title="Xóa account chưa bán"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -674,6 +767,43 @@ export const AccountsPage = () => {
       )}
 
       {/* Modal Chi tiết Account */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-red-500/40 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-red-500/10 p-2 text-red-400">
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Xóa hàng loạt account?</h3>
+                <p className="mt-2 text-sm text-slate-400">
+                  Bạn sắp xóa vĩnh viễn <strong className="text-white">{selectedAccountIds.length}</strong> account chưa bán.
+                </p>
+                <p className="mt-2 text-sm text-red-300">Hành động này không thể hoàn tác.</p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDelete}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {isBulkDeleting ? 'Đang xóa...' : `Xóa ${selectedAccountIds.length} account`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {viewAccount && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass w-full max-w-md rounded-2xl border border-slate-700 shadow-2xl overflow-hidden flex flex-col">

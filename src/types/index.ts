@@ -63,7 +63,7 @@ export interface Account {
   id: number;
   productId: number;
   accountData: string[];
-  status: 'AVAILABLE' | 'SOLD' | 'RESERVED';
+  status: 'AVAILABLE' | 'SOLD' | 'RESERVED' | 'QUARANTINED';
   soldAt: string | null;
   orderCode?: string;
 }
