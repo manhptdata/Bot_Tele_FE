@@ -50,6 +50,7 @@ import {
 import toast from 'react-hot-toast';
 import { PaymentConfigSaveRequest, BotMode, BotConfigSaveRequest } from '../types';
 import { ConnectBotModal } from '../components/bot/ConnectBotModal';
+import { BankOption, fetchVietQrBanks } from '../integrations/vietqr/bankCatalog';
 
 export const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState<'BOT' | 'PAYMENT'>('BOT');
@@ -246,6 +247,7 @@ export const SettingsPage = () => {
 
   const [paymentFormData, setPaymentFormData] = useState({
     bankName: defaultConfig?.bankName || 'ACB',
+    bankCode: defaultConfig?.bankCode || '',
     accountNumber: defaultConfig?.accountNumber || '',
     accountHolder: defaultConfig?.accountHolder || '',
     webhookProvider: defaultConfig?.webhookProvider || 'SEPAY',
@@ -301,7 +303,7 @@ export const SettingsPage = () => {
     setTimeout(() => setIsCopiedWebhook(false), 2000);
   };
 
-  const [banks, setBanks] = useState<any[]>([]);
+  const [banks, setBanks] = useState<BankOption[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchBank, setSearchBank] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -320,6 +322,7 @@ export const SettingsPage = () => {
     if (defaultConfig) {
       setPaymentFormData({
         bankName: defaultConfig.bankName,
+        bankCode: defaultConfig.bankCode || '',
         accountNumber: defaultConfig.accountNumber,
         accountHolder: defaultConfig.accountHolder,
         webhookProvider: defaultConfig.webhookProvider || 'SEPAY',
@@ -334,14 +337,16 @@ export const SettingsPage = () => {
   }, [defaultConfig]);
 
   useEffect(() => {
-    fetch('https://api.vietqr.io/v2/banks')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.code === '00' && data.data) {
-          setBanks(data.data);
-        }
-      })
-      .catch((err) => console.error('Error fetching banks:', err));
+    const controller = new AbortController();
+
+    fetchVietQrBanks(controller.signal)
+      .then(setBanks)
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        console.error('Error fetching banks:', err);
+      });
+
+    return () => controller.abort();
   }, []);
 
   const handlePaymentChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -351,17 +356,23 @@ export const SettingsPage = () => {
   const hasSensitivePaymentChanges = () => {
     if (!defaultConfig) return true;
     const bankNameChanged = paymentFormData.bankName?.trim() !== defaultConfig.bankName?.trim();
+    const bankCodeChanged = paymentFormData.bankCode?.trim() !== (defaultConfig.bankCode || '').trim();
     const accNumChanged = paymentFormData.accountNumber?.trim() !== defaultConfig.accountNumber?.trim();
     const accHolderChanged = paymentFormData.accountHolder?.trim() !== defaultConfig.accountHolder?.trim();
     const providerChanged = paymentFormData.webhookProvider !== defaultConfig.webhookProvider;
     const apiKeyChanged = !!paymentFormData.webhookApiKey && paymentFormData.webhookApiKey.trim() !== '';
-    return bankNameChanged || accNumChanged || accHolderChanged || providerChanged || apiKeyChanged;
+    return bankNameChanged || bankCodeChanged || accNumChanged || accHolderChanged || providerChanged || apiKeyChanged;
   };
 
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!paymentFormData.bankCode.trim()) {
+      toast.error('Ngân hàng đang thiếu mã VietQR. Vui lòng chọn lại ngân hàng.');
+      return;
+    }
     const payload: PaymentConfigSaveRequest = {
       bankName: paymentFormData.bankName?.trim(),
+      bankCode: paymentFormData.bankCode.trim(),
       accountNumber: paymentFormData.accountNumber?.trim(),
       accountHolder: paymentFormData.accountHolder?.trim().toUpperCase(),
       webhookProvider: paymentFormData.webhookProvider,
@@ -873,7 +884,7 @@ export const SettingsPage = () => {
                         >
                           <span className={paymentFormData.bankName ? 'text-white font-medium' : 'text-gray-400'}>
                             {paymentFormData.bankName
-                              ? banks.find((b) => b.shortName === paymentFormData.bankName)?.name || paymentFormData.bankName
+                              ? banks.find((b) => b.shortName === paymentFormData.bankName || b.qrCode === paymentFormData.bankCode)?.displayName || paymentFormData.bankName
                               : '-- Chọn Ngân hàng --'}
                           </span>
                           <ChevronDown size={18} className="text-gray-400" />
@@ -896,21 +907,25 @@ export const SettingsPage = () => {
                               {banks
                                 .filter(
                                   (bank) =>
-                                    bank.name.toLowerCase().includes(searchBank.toLowerCase()) ||
+                                    bank.displayName.toLowerCase().includes(searchBank.toLowerCase()) ||
                                     bank.shortName.toLowerCase().includes(searchBank.toLowerCase())
                                 )
-                                .map((bank: any) => (
+                                .map((bank) => (
                                   <div
-                                    key={bank.id}
+                                    key={bank.key}
                                     className="px-4 py-2 hover:bg-blue-600/20 cursor-pointer text-sm text-slate-200 flex flex-col"
                                     onClick={() => {
-                                      setPaymentFormData({ ...paymentFormData, bankName: bank.shortName });
+                                      setPaymentFormData({
+                                        ...paymentFormData,
+                                        bankName: bank.shortName,
+                                        bankCode: bank.qrCode,
+                                      });
                                       setIsDropdownOpen(false);
                                       setSearchBank('');
                                     }}
                                   >
                                     <span className="font-medium text-blue-400">{bank.shortName}</span>
-                                    <span className="text-xs text-slate-400">{bank.name}</span>
+                                    <span className="text-xs text-slate-400">{bank.displayName}</span>
                                   </div>
                                 ))}
                             </div>
