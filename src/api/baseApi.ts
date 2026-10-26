@@ -100,6 +100,7 @@ export const baseApi = createApi({
     'BotConfig',
     'SetupStatus',
     'Voucher',
+    'OwnerNotificationSettings',
   ] as const,
   endpoints: (_builder) => ({}),
 });

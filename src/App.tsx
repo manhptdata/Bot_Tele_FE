@@ -16,6 +16,7 @@ import { BroadcastPage } from './pages/BroadcastPage';
 import { AdminsPage } from './pages/AdminsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { VouchersPage } from './pages/VouchersPage';
+import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
 
 import { useSelector } from 'react-redux';
 import { RootState } from './store/store';
@@ -51,6 +52,7 @@ function App() {
               <Route path="/vouchers" element={<VouchersPage />} />
               <Route path="/broadcast" element={<BroadcastPage />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/notification-settings" element={<NotificationSettingsPage />} />
               <Route path="/admins" element={<AdminsPage />} />
             </Route>
           </Route>
