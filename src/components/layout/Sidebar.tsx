@@ -21,6 +21,8 @@ import {
   Ticket,
   X,
   BellRing,
+  Rocket,
+  ClipboardCheck,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,6 +34,7 @@ interface SubNavItem {
   path: string;
   label: string;
   icon: any;
+  roles?: string[];
 }
 
 interface NavItem {
@@ -47,6 +50,14 @@ const navItems: NavItem[] = [
   { path: '/categories', label: 'Danh mục', icon: FolderTree },
   { path: '/products', label: 'Sản phẩm', icon: Package },
   { path: '/accounts', label: 'Nhập kho', icon: Warehouse },
+  {
+    label: 'Nâng cấp tài khoản',
+    icon: Rocket,
+    children: [
+      { path: '/upgrade-services', label: 'Gói dịch vụ', icon: Package, roles: ['ADMIN'] },
+      { path: '/upgrade-orders', label: 'Đơn nâng cấp', icon: ClipboardCheck },
+    ],
+  },
   {
     label: 'Đơn hàng & Giao dịch',
     icon: ShoppingCart,
@@ -70,18 +81,23 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { data: meData } = useGetMeQuery();
   const currentUser = meData || authUser;
 
-  // Kiểm tra xem hiện tại có đang ở trang đơn hàng hoặc webhook không
-  const isOrderPathActive =
-    location.pathname.startsWith('/orders') || location.pathname.startsWith('/payment-events');
-
-  const [isOrderMenuOpen, setIsOrderMenuOpen] = useState<boolean>(isOrderPathActive);
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(
+      navItems
+        .filter((item) => item.children?.some((child) => location.pathname.startsWith(child.path)))
+        .map((item) => [item.label, true]),
+    ),
+  );
 
   // Tự động mở submenu nếu điều hướng tới route con
   useEffect(() => {
-    if (isOrderPathActive) {
-      setIsOrderMenuOpen(true);
+    const activeMenu = navItems.find((item) =>
+      item.children?.some((child) => location.pathname.startsWith(child.path)),
+    );
+    if (activeMenu) {
+      setOpenMenus((current) => ({ ...current, [activeMenu.label]: true }));
     }
-  }, [isOrderPathActive]);
+  }, [location.pathname]);
 
   return (
     <aside
@@ -111,14 +127,23 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
           const Icon = item.icon;
 
-          // Nếu là menu có submenu (Đơn hàng)
+          // Nếu là menu có submenu
           if (item.children) {
-            const hasActiveChild = item.children.some((child) => location.pathname.startsWith(child.path));
+            const visibleChildren = item.children.filter(
+              (child) => !child.roles || (currentUser && child.roles.includes(currentUser.role)),
+            );
+            if (visibleChildren.length === 0) return null;
+            const hasActiveChild = visibleChildren.some((child) => location.pathname.startsWith(child.path));
+            const isMenuOpen = Boolean(openMenus[item.label]);
 
             return (
               <div key={item.label} className="space-y-1">
                 <button
-                  onClick={() => setIsOrderMenuOpen(!isOrderMenuOpen)}
+                  type="button"
+                  onClick={() => setOpenMenus((current) => ({
+                    ...current,
+                    [item.label]: !current[item.label],
+                  }))}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${hasActiveChild
                     ? 'bg-blue-600/10 text-blue-400 font-semibold'
                     : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'
@@ -128,7 +153,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                     <Icon size={20} className={hasActiveChild ? 'text-blue-400' : 'text-gray-400'} />
                     <span className="font-medium text-sm">{item.label}</span>
                   </div>
-                  {isOrderMenuOpen ? (
+                  {isMenuOpen ? (
                     <ChevronDown size={16} className="text-gray-400 transition-transform duration-200" />
                   ) : (
                     <ChevronRight size={16} className="text-gray-400 transition-transform duration-200" />
@@ -136,9 +161,9 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 </button>
 
                 {/* Submenu xổ xuống */}
-                {isOrderMenuOpen && (
+                {isMenuOpen && (
                   <div className="pl-6 pr-2 py-1 space-y-1 border-l-2 border-slate-800 ml-4 animate-in slide-in-from-top-2 duration-200">
-                    {item.children.map((child) => {
+                    {visibleChildren.map((child) => {
                       const ChildIcon = child.icon;
                       const isChildActive = location.pathname.startsWith(child.path);
 

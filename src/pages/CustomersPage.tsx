@@ -847,7 +847,9 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
               ) : (
                 <div className="space-y-2.5">
                   {transactions.map((tx) => {
-                    const isPositive = Number(tx.amount) > 0 && tx.type !== 'PURCHASE' && tx.type !== 'REFUND';
+                    const amount = Number(tx.amount);
+                    const isPositive = amount > 0;
+                    const isNegative = amount < 0;
                     return (
                       <div
                         key={tx.id}
@@ -873,8 +875,8 @@ const CustomerDetailModal: React.FC<CustomerDetailModalProps> = ({
                         </div>
 
                         <div className="text-right">
-                          <span className={`text-base font-bold font-mono ${isPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {isPositive ? `+${formatMoney(tx.amount)}` : `-${formatMoney(tx.amount)}`}
+                          <span className={`text-base font-bold font-mono ${isPositive ? 'text-emerald-400' : isNegative ? 'text-rose-400' : 'text-slate-400'}`}>
+                            {isPositive ? '+' : ''}{formatMoney(amount)}
                           </span>
                         </div>
                       </div>

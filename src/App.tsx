@@ -17,6 +17,9 @@ import { AdminsPage } from './pages/AdminsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { VouchersPage } from './pages/VouchersPage';
 import { NotificationSettingsPage } from './pages/NotificationSettingsPage';
+import { UpgradeServicesPage } from './pages/UpgradeServicesPage';
+import { UpgradeOrdersPage } from './pages/UpgradeOrdersPage';
+import { UpgradeMiniAppPage } from './pages/UpgradeMiniAppPage';
 
 import { useSelector } from 'react-redux';
 import { RootState } from './store/store';
@@ -34,6 +37,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/miniapp/upgrade/:token" element={<UpgradeMiniAppPage />} />
         
         <Route element={<ProtectedRoute />}>
           <Route element={<AdminLayout />}>
@@ -44,11 +48,13 @@ function App() {
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/payment-events" element={<PaymentEventsPage />} />
             <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/upgrade-orders" element={<UpgradeOrdersPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             
             {/* Admin Only Routes */}
             <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/upgrade-services" element={<UpgradeServicesPage />} />
               <Route path="/vouchers" element={<VouchersPage />} />
               <Route path="/broadcast" element={<BroadcastPage />} />
               <Route path="/settings" element={<SettingsPage />} />

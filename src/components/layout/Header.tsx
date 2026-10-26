@@ -56,9 +56,16 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         
         // Phát âm thanh chuông báo
         try {
-          const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-          audio.volume = 0.5;
-          audio.play().catch(() => {});
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          const context = new AudioContextClass();
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          oscillator.frequency.setValueAtTime(880, context.currentTime);
+          oscillator.frequency.exponentialRampToValueAtTime(1320, context.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.12, context.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.35);
+          oscillator.connect(gain); gain.connect(context.destination);
+          oscillator.start(); oscillator.stop(context.currentTime + 0.35);
         } catch (e) {}
 
         // Hiển thị Callout Popup có mũi tên trỏ thẳng từ quả chuông xuống
@@ -120,6 +127,11 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         break;
       case 'INVENTORY':
         navigate(referenceId ? `/accounts?productId=${referenceId}` : '/accounts');
+        break;
+      case 'UPGRADE_ORDER_SUBMITTED':
+      case 'UPGRADE_ORDER_RESUBMITTED':
+      case 'UPGRADE_PAYMENT':
+        navigate(referenceId ? `/upgrade-orders?orderId=${referenceId}` : '/upgrade-orders');
         break;
       default:
         break;

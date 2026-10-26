@@ -23,6 +23,13 @@ export interface TopProduct {
   revenue: number;
 }
 
+export interface TopUpgradeService {
+  serviceId: number;
+  serviceName: string;
+  quantity: number;
+  revenue: number;
+}
+
 export interface PaymentMethodStat {
   method: string;
   orderCount: number;
@@ -41,6 +48,7 @@ export interface DashboardAnalyticsResponse {
   availableAccounts: number;
   timeline: TimelinePoint[];
   topProducts: TopProduct[];
+  topUpgradeServices: TopUpgradeService[];
   paymentStats: PaymentMethodStat[];
 }
 
@@ -61,14 +69,14 @@ export const dashboardApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getDashboardStats: builder.query<DashboardStats, void>({
       query: () => '/admin/dashboard/stats',
-      providesTags: ['Dashboard', 'Order', 'Customer'],
+      providesTags: ['Dashboard', 'Order', 'UpgradeOrder' as any, 'Customer'],
     }),
     getDashboardAnalytics: builder.query<DashboardAnalyticsResponse, { start?: string; end?: string } | void>({
       query: (params) => {
         if (!params || !params.start || !params.end) return '/admin/dashboard/analytics';
         return `/admin/dashboard/analytics?start=${encodeURIComponent(params.start)}&end=${encodeURIComponent(params.end)}`;
       },
-      providesTags: ['Dashboard', 'Order', 'Customer'],
+      providesTags: ['Dashboard', 'Order', 'UpgradeOrder' as any, 'Customer'],
     }),
     getProductAnalytics: builder.query<
       ProductAnalyticsResponse,
@@ -83,6 +91,17 @@ export const dashboardApi = baseApi.injectEndpoints({
       },
       providesTags: ['Dashboard', 'Order', 'Product', 'Account'],
     }),
+    getUpgradeServiceAnalytics: builder.query<
+      ProductAnalyticsResponse,
+      { serviceId: number; start?: string; end?: string }
+    >({
+      query: ({ serviceId, start, end }) => {
+        let url = `/admin/dashboard/upgrade-service-analytics?serviceId=${serviceId}`;
+        if (start && end) url += `&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+        return url;
+      },
+      providesTags: ['Dashboard', 'UpgradeOrder' as any, 'UpgradeService' as any],
+    }),
   }),
 });
 
@@ -90,4 +109,5 @@ export const {
   useGetDashboardStatsQuery,
   useGetDashboardAnalyticsQuery,
   useGetProductAnalyticsQuery,
+  useGetUpgradeServiceAnalyticsQuery,
 } = dashboardApi;

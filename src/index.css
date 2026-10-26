@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  .input {
+    @apply bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-100 placeholder:text-slate-600 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/40;
+  }
+.action {
+    @apply px-3 py-2 rounded-lg text-white text-sm flex items-center gap-1.5 disabled:opacity-50;
+  }
+}
+
+.masked-input {
+  -webkit-text-security: disc;
+}
+
 :root {
   --bg-color: #0f172a;
   --surface-color: #1e293b;

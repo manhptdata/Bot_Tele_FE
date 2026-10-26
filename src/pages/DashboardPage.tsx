@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef } from 'react';
-import { useGetDashboardAnalyticsQuery, useGetProductAnalyticsQuery } from '../api/dashboardApi';
+import { useGetDashboardAnalyticsQuery, useGetProductAnalyticsQuery, useGetUpgradeServiceAnalyticsQuery } from '../api/dashboardApi';
 import { useGetProductsQuery } from '../api/productApi';
 import { useGetAllWalletsQuery } from '../api/walletApi';
 import { useGetOrdersQuery } from '../api/orderApi';
+import { useGetUpgradeOrdersQuery, useGetUpgradeServicesQuery } from '../api/upgradeApi';
 import { SetupWizard } from '../components/dashboard/SetupWizard';
 import {
   DollarSign,
@@ -234,17 +235,24 @@ export const DashboardPage = () => {
   };
 
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [selectedCatalogType, setSelectedCatalogType] = useState<'PRODUCT' | 'UPGRADE'>('PRODUCT');
   const [productSearchInput, setProductSearchInput] = useState<string>('');
   const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
   const [productChartMetric, setProductChartMetric] = useState<'REVENUE' | 'QUANTITY'>('REVENUE');
 
   const { data: productsData } = useGetProductsQuery({ size: 1000 });
   const allProducts = productsData?.content || [];
+  const { data: upgradeServicesData } = useGetUpgradeServicesQuery({ page: 0, size: 100 });
+  const allUpgradeServices = upgradeServicesData?.content || [];
 
   const filteredProducts = useMemo(() => {
-    if (!productSearchInput.trim()) return allProducts.slice(0, 30);
+    const catalog = [
+      ...allProducts.map(item => ({ ...item, catalogType: 'PRODUCT' as const })),
+      ...allUpgradeServices.map(item => ({ ...item, stockCount: null, catalogType: 'UPGRADE' as const })),
+    ];
+    if (!productSearchInput.trim()) return catalog.slice(0, 30);
     const term = productSearchInput.trim().toLowerCase().replace(/^#/, '');
-    return allProducts
+    return catalog
       .filter((p) => {
         const idMatch = String(p.id).includes(term);
         const nameMatch = p.name.toLowerCase().includes(term);
@@ -252,20 +260,29 @@ export const DashboardPage = () => {
         return idMatch || nameMatch || slugMatch;
       })
       .slice(0, 30);
-  }, [allProducts, productSearchInput]);
+  }, [allProducts, allUpgradeServices, productSearchInput]);
 
   const {
-    data: productAnalytics,
-    isLoading: isProductAnalyticsLoading,
-    isError: isProductAnalyticsError,
+    data: standardProductAnalytics,
+    isLoading: isStandardProductAnalyticsLoading,
+    isError: isStandardProductAnalyticsError,
   } = useGetProductAnalyticsQuery(
     {
       productId: selectedProductId!,
       start: queryRange.start,
       end: queryRange.end,
     },
-    { skip: !selectedProductId }
+    { skip: !selectedProductId || selectedCatalogType !== 'PRODUCT' }
   );
+
+  const { data: upgradeServiceAnalytics, isLoading: isUpgradeAnalyticsLoading, isError: isUpgradeAnalyticsError } = useGetUpgradeServiceAnalyticsQuery(
+    { serviceId: selectedProductId!, start: queryRange.start, end: queryRange.end },
+    { skip: !selectedProductId || selectedCatalogType !== 'UPGRADE' },
+  );
+  const productAnalytics = selectedCatalogType === 'UPGRADE' ? upgradeServiceAnalytics : standardProductAnalytics;
+  const isProductAnalyticsLoading = selectedCatalogType === 'UPGRADE' ? isUpgradeAnalyticsLoading : isStandardProductAnalyticsLoading;
+  const isProductAnalyticsError = selectedCatalogType === 'UPGRADE' ? isUpgradeAnalyticsError : isStandardProductAnalyticsError;
+  const hasProductTimelineData = Boolean(productAnalytics?.timeline?.some(point => Number(point.revenue) > 0 || Number(point.orderCount) > 0));
 
   const { data: analytics, isLoading: isAnalyticsLoading, isError: isAnalyticsError } = useGetDashboardAnalyticsQuery({
     start: queryRange.start,
@@ -275,6 +292,8 @@ export const DashboardPage = () => {
   const { data: wallets = [] } = useGetAllWalletsQuery();
   const { data: ordersPage } = useGetOrdersQuery({ size: 6 });
   const recentOrders = ordersPage?.content || [];
+  const { data: upgradeOrdersPage } = useGetUpgradeOrdersQuery({ page: 0, size: 6 });
+  const recentUpgradeOrders = upgradeOrdersPage?.content || [];
 
   const totalWalletBalance = useMemo(() => {
     return wallets.reduce((sum, w) => sum + (Number(w.balance) || 0), 0);
@@ -282,9 +301,14 @@ export const DashboardPage = () => {
 
   // Chuẩn bị dữ liệu Top sản phẩm
   const topProducts = analytics?.topProducts || [];
+  const topUpgradeServices = analytics?.topUpgradeServices || [];
+  const topSellingItems = useMemo(() => [
+    ...topProducts.map(product => ({ ...product, itemId: product.productId, itemName: product.productName, catalogType: 'PRODUCT' as const })),
+    ...topUpgradeServices.map(service => ({ ...service, itemId: service.serviceId, itemName: service.serviceName, catalogType: 'UPGRADE' as const })),
+  ].sort((a, b) => b.quantity - a.quantity || b.revenue - a.revenue).slice(0, 5), [topProducts, topUpgradeServices]);
   const maxProductRevenue = useMemo(() => {
-    return Math.max(...topProducts.map((p) => p.revenue), 1);
-  }, [topProducts]);
+    return Math.max(...topSellingItems.map((item) => item.revenue), 1);
+  }, [topSellingItems]);
 
   // Chuẩn bị dữ liệu Phương thức thanh toán
   const paymentStats = analytics?.paymentStats || [];
@@ -567,10 +591,10 @@ export const DashboardPage = () => {
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
               <ShoppingBag size={20} className="text-emerald-400" />
-              Tra Cứu & Phân Tích Doanh Số Theo Sản Phẩm
+              Tra Cứu Doanh Số Sản Phẩm & Dịch Vụ Nâng Cấp
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Chọn một sản phẩm bất kỳ để xem lượng bán, doanh thu, tồn kho và biểu đồ tiêu thụ trong kỳ đang lọc
+              Tìm sản phẩm trong kho hoặc gói nâng cấp để xem doanh thu và lượng bán trong kỳ
             </p>
           </div>
 
@@ -586,7 +610,7 @@ export const DashboardPage = () => {
                   setProductSearchInput(e.target.value);
                   setIsDropdownOpen(true);
                 }}
-                placeholder="Tìm sản phẩm theo Tên, #ID, hoặc Slug..."
+                placeholder="Tìm sản phẩm hoặc dịch vụ nâng cấp..."
                 className="w-full bg-slate-950 border border-slate-700 focus:border-emerald-500/80 focus:ring-1 focus:ring-emerald-500/50 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-slate-500 transition-all outline-none"
               />
               {(productSearchInput || selectedProductId) && (
@@ -615,19 +639,20 @@ export const DashboardPage = () => {
                 <div className="absolute left-0 right-0 top-full mt-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto divide-y divide-slate-800 animate-in fade-in-50 zoom-in-95 duration-200">
                   {filteredProducts.length === 0 ? (
                     <div className="p-4 text-center text-xs text-slate-400">
-                      Không tìm thấy sản phẩm nào khớp với từ khóa
+                      Không tìm thấy sản phẩm hoặc dịch vụ nâng cấp phù hợp
                     </div>
                   ) : (
                     filteredProducts.map((p) => (
                       <button
-                        key={p.id}
+                        key={`${p.catalogType}-${p.id}`}
                         type="button"
                         onClick={() => {
                           setSelectedProductId(p.id);
+                          setSelectedCatalogType(p.catalogType);
                           setProductSearchInput(p.name);
                           setIsDropdownOpen(false);
                         }}
-                        className={`w-full text-left p-3 hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-3 ${selectedProductId === p.id ? 'bg-emerald-500/10 border-l-4 border-emerald-500' : ''
+                        className={`w-full text-left p-3 hover:bg-slate-800/80 transition-colors flex items-center justify-between gap-3 ${selectedProductId === p.id && selectedCatalogType === p.catalogType ? 'bg-emerald-500/10 border-l-4 border-emerald-500' : ''
                           }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
@@ -644,6 +669,7 @@ export const DashboardPage = () => {
                               <span className="font-mono text-emerald-400">#{p.id}</span>
                               <span>•</span>
                               <span className="truncate">{p.slug}</span>
+                              <span className={`px-1.5 py-0.5 rounded ${p.catalogType === 'UPGRADE' ? 'bg-violet-500/15 text-violet-300' : 'bg-emerald-500/10 text-emerald-300'}`}>{p.catalogType === 'UPGRADE' ? 'Nâng cấp' : 'Sản phẩm'}</span>
                             </div>
                           </div>
                         </div>
@@ -651,9 +677,7 @@ export const DashboardPage = () => {
                           <p className="text-xs font-bold text-emerald-400 font-mono">
                             {Number(p.price || 0).toLocaleString()}đ
                           </p>
-                          <span className={`text-[10px] font-medium ${p.stockCount > 0 ? 'text-slate-400' : 'text-rose-400'}`}>
-                            Kho: {p.stockCount ?? 0}
-                          </span>
+                          {p.catalogType === 'UPGRADE' ? <span className="text-[10px] font-medium text-violet-300">Dịch vụ</span> : <span className={`text-[10px] font-medium ${(p.stockCount || 0) > 0 ? 'text-slate-400' : 'text-rose-400'}`}>Kho: {p.stockCount ?? 0}</span>}
                         </div>
                       </button>
                     ))
@@ -671,20 +695,20 @@ export const DashboardPage = () => {
               <Search size={22} />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">Chưa chọn sản phẩm nào để phân tích</h3>
+              <h3 className="text-sm font-bold text-white">Chưa chọn sản phẩm hoặc dịch vụ nào</h3>
               <p className="text-xs text-slate-400 mt-1 max-w-md">
-                Gõ tên, mã #ID hoặc mã rút gọn (slug) vào thanh tìm kiếm ở trên để xem chi tiết lượng tiêu thụ và doanh thu của sản phẩm đó.
+                Gõ tên, mã #ID hoặc slug để xem doanh thu và lượng bán của sản phẩm hoặc dịch vụ nâng cấp.
               </p>
             </div>
           </div>
         ) : isProductAnalyticsLoading ? (
           <div className="py-14 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
-            <span className="text-xs">Đang tổng hợp dữ liệu sản phẩm...</span>
+            <span className="text-xs">Đang tổng hợp dữ liệu...</span>
           </div>
         ) : isProductAnalyticsError ? (
           <div className="p-5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-            <AlertCircle size={16} /> Không thể tải dữ liệu phân tích sản phẩm này.
+            <AlertCircle size={16} /> Không thể tải dữ liệu phân tích mục này.
           </div>
         ) : productAnalytics ? (
           <div className="space-y-5">
@@ -705,7 +729,7 @@ export const DashboardPage = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      ID #{productAnalytics.productId}
+                      {selectedCatalogType === 'UPGRADE' ? 'DỊCH VỤ' : 'SẢN PHẨM'} #{productAnalytics.productId}
                     </span>
                     <h3 className="text-sm font-extrabold text-white">{productAnalytics.productName}</h3>
                   </div>
@@ -759,7 +783,7 @@ export const DashboardPage = () => {
 
               <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
-                  <span>Doanh thu sản phẩm</span>
+                  <span>{selectedCatalogType === 'UPGRADE' ? 'Doanh thu dịch vụ' : 'Doanh thu sản phẩm'}</span>
                   <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
                     <DollarSign size={15} />
                   </div>
@@ -767,21 +791,21 @@ export const DashboardPage = () => {
                 <div className="text-xl font-bold text-emerald-400 font-mono mt-1">
                   {Number(productAnalytics.totalRevenue || 0).toLocaleString()}đ
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">Tổng doanh thu từ sản phẩm trong kỳ</p>
+                <p className="text-[11px] text-slate-500 mt-2">Tổng doanh thu từ {selectedCatalogType === 'UPGRADE' ? 'dịch vụ' : 'sản phẩm'} trong kỳ</p>
               </div>
 
               <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
                 <div className="flex items-center justify-between text-xs text-slate-400 font-semibold mb-1">
-                  <span>Tồn kho hiện tại</span>
+                  <span>{selectedCatalogType === 'UPGRADE' ? 'Loại kinh doanh' : 'Tồn kho hiện tại'}</span>
                   <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400">
                     <Package size={15} />
                   </div>
                 </div>
                 <div className="text-xl font-bold text-white font-mono mt-1">
-                  {(productAnalytics.currentStock ?? 0).toLocaleString()}{' '}
-                  <span className="text-xs text-slate-400 font-sans font-normal">acc sẵn sàng</span>
+                  {selectedCatalogType === 'UPGRADE' ? 'Dịch vụ' : (productAnalytics.currentStock ?? 0).toLocaleString()}{' '}
+                  <span className="text-xs text-slate-400 font-sans font-normal">{selectedCatalogType === 'UPGRADE' ? 'nâng cấp tài khoản' : 'acc sẵn sàng'}</span>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-2">Tài khoản còn trong kho chưa bán</p>
+                <p className="text-[11px] text-slate-500 mt-2">{selectedCatalogType === 'UPGRADE' ? 'Không sử dụng tồn kho tài khoản' : 'Tài khoản còn trong kho chưa bán'}</p>
               </div>
 
               <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 hover:border-slate-700 transition-colors">
@@ -811,9 +835,9 @@ export const DashboardPage = () => {
                 </span>
               </div>
               <div className="h-64 w-full">
-                {!productAnalytics.timeline || productAnalytics.timeline.length === 0 ? (
+                {!hasProductTimelineData ? (
                   <div className="h-full flex items-center justify-center text-slate-500 text-xs">
-                    Chưa có dữ liệu trong khoảng thời gian này
+                    Chưa có đơn đã thanh toán trong khoảng thời gian này
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
@@ -861,18 +885,18 @@ export const DashboardPage = () => {
           <div>
             <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-1">
               <Award size={18} className="text-amber-400" />
-              Top 5 Sản Phẩm Bán Chạy Nhất Trong Kỳ
+              Top 5 Sản Phẩm & Dịch Vụ Bán Chạy Trong Kỳ
             </h2>
-            <p className="text-xs text-slate-400 mb-4">Xếp hạng theo số lượng tài khoản/dịch vụ đã bán ra</p>
+            <p className="text-xs text-slate-400 mb-4">Xếp hạng chung theo số lượng đã bán, có phân biệt sản phẩm và dịch vụ nâng cấp</p>
 
             <div className="space-y-3.5">
-              {topProducts.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-sm">Chưa có sản phẩm nào bán ra trong kỳ</div>
+              {topSellingItems.length === 0 ? (
+                <div className="text-center py-10 text-slate-500 text-sm">Chưa có sản phẩm hoặc dịch vụ nào bán ra trong kỳ</div>
               ) : (
-                topProducts.map((prod, idx) => {
+                topSellingItems.map((prod, idx) => {
                   const percent = Math.min(Math.round((prod.revenue / maxProductRevenue) * 100), 100);
                   return (
-                    <div key={prod.productId} className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80">
+                    <div key={`${prod.catalogType}-${prod.itemId}`} className="bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/80">
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2.5">
                           <span
@@ -887,7 +911,7 @@ export const DashboardPage = () => {
                           >
                             #{idx + 1}
                           </span>
-                          <span className="text-sm font-semibold text-white truncate max-w-xs">{prod.productName}</span>
+                          <div className="min-w-0"><span className="text-sm font-semibold text-white truncate max-w-xs block">{prod.itemName}</span><span className={`text-[10px] ${prod.catalogType === 'UPGRADE' ? 'text-violet-300' : 'text-emerald-300'}`}>{prod.catalogType === 'UPGRADE' ? 'Dịch vụ nâng cấp' : 'Sản phẩm trong kho'}</span></div>
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-bold text-emerald-400 font-mono">
@@ -1007,6 +1031,21 @@ export const DashboardPage = () => {
           {recentOrders.length === 0 && (
             <div className="col-span-full py-8 text-center text-slate-500 text-sm">Chưa có đơn hàng nào</div>
           )}
+        </div>
+      </div>
+
+      {/* Đơn nâng cấp gần đây */}
+      <div className="glass p-6 rounded-2xl border border-violet-500/20 shadow-xl">
+        <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
+          <Clock size={18} className="text-violet-400" />
+          Đơn Nâng Cấp Mới Nhất
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {recentUpgradeOrders.map((order) => <div key={`upgrade-${order.id}`} className="bg-slate-900/60 p-4 rounded-xl border border-violet-500/15 flex items-center justify-between hover:bg-slate-800/40 transition-colors">
+            <div className="min-w-0"><p className="font-mono text-sm font-bold text-white">{order.orderCode}</p><p className="text-xs text-violet-300 mt-0.5 truncate">{order.serviceName}</p><p className="text-[11px] text-slate-500 mt-1">{new Date(order.createdAt).toLocaleString('vi-VN')}</p></div>
+            <div className="text-right shrink-0 ml-3"><p className="font-bold text-green-400 font-mono">{Number(order.totalAmount || 0).toLocaleString()}đ</p><p className="text-[11px] text-slate-400 mt-1">{order.quantity} tài khoản</p><span className={`inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold ${order.paymentStatus === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : order.paymentStatus === 'PENDING' ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>{order.paymentStatus}</span></div>
+          </div>)}
+          {recentUpgradeOrders.length === 0 && <div className="col-span-full py-8 text-center text-slate-500 text-sm">Chưa có đơn nâng cấp nào</div>}
         </div>
       </div>
     </div>

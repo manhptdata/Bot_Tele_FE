@@ -101,6 +101,8 @@ export const baseApi = createApi({
     'SetupStatus',
     'Voucher',
     'OwnerNotificationSettings',
+    'UpgradeService',
+    'UpgradeOrder',
   ] as const,
   endpoints: (_builder) => ({}),
 });
