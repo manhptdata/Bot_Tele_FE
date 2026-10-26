@@ -20,6 +20,7 @@ import {
   ClipboardList,
   Ticket,
   X,
+  BellRing,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -58,6 +59,7 @@ const navItems: NavItem[] = [
   { path: '/vouchers', label: 'Mã giảm giá', icon: Ticket, roles: ['ADMIN'] },
   { path: '/broadcast', label: 'Phát sóng', icon: Radio, roles: ['ADMIN'] },
   { path: '/settings', label: 'Cấu hình', icon: Settings, roles: ['ADMIN'] },
+  { path: '/notification-settings', label: 'Thông báo chủ shop', icon: BellRing, roles: ['ADMIN'] },
   { path: '/admins', label: 'Quản trị viên', icon: UserCog, roles: ['ADMIN'] },
   { path: '/profile', label: 'Hồ sơ cá nhân', icon: UserCircle },
 ];
