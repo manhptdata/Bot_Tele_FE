@@ -169,6 +169,9 @@ export interface PaymentConfig {
   // Số đơn chờ chuyển khoản tối đa mỗi khách; 0 = không giới hạn
   maxPendingOrdersPerCustomer?: number;
   guideContent?: string;
+  orderTransferContentTemplate?: string;
+  upgradeTransferContentTemplate?: string;
+  walletTransferContentTemplate?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -186,6 +189,9 @@ export interface PaymentConfigSaveRequest {
   bankFeeAmount?: number;
   maxPendingOrdersPerCustomer?: number;
   guideContent?: string;
+  orderTransferContentTemplate?: string;
+  upgradeTransferContentTemplate?: string;
+  walletTransferContentTemplate?: string;
   webhookApiKey?: string;
   webhookSecret?: string;
   clearWebhookApiKey?: boolean;

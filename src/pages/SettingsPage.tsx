@@ -257,11 +257,15 @@ export const SettingsPage = () => {
     bankFeeAmount: defaultConfig?.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
     maxPendingOrdersPerCustomer: defaultConfig?.maxPendingOrdersPerCustomer ?? 0,
     guideContent: defaultConfig?.guideContent || '',
+    orderTransferContentTemplate: defaultConfig?.orderTransferContentTemplate || '{code}',
+    upgradeTransferContentTemplate: defaultConfig?.upgradeTransferContentTemplate || '{code}',
+    walletTransferContentTemplate: defaultConfig?.walletTransferContentTemplate || '{code}',
   });
 
   const [isBankConfigOpen, setIsBankConfigOpen] = useState(true);
   const [isWebhookConfigOpen, setIsWebhookConfigOpen] = useState(true);
   const [isOrderConfigOpen, setIsOrderConfigOpen] = useState(true);
+  const [isTransferContentOpen, setIsTransferContentOpen] = useState(true);
   const [isGuideConfigOpen, setIsGuideConfigOpen] = useState(true);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showSePayGuide, setShowSePayGuide] = useState(false);
@@ -332,6 +336,9 @@ export const SettingsPage = () => {
         bankFeeAmount: defaultConfig.bankFeeAmount !== undefined ? defaultConfig.bankFeeAmount : 0,
         maxPendingOrdersPerCustomer: defaultConfig.maxPendingOrdersPerCustomer ?? 0,
         guideContent: defaultConfig.guideContent || '',
+        orderTransferContentTemplate: defaultConfig.orderTransferContentTemplate || '{code}',
+        upgradeTransferContentTemplate: defaultConfig.upgradeTransferContentTemplate || '{code}',
+        walletTransferContentTemplate: defaultConfig.walletTransferContentTemplate || '{code}',
       });
     }
   }, [defaultConfig]);
@@ -366,6 +373,15 @@ export const SettingsPage = () => {
 
   const handlePaymentSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const transferTemplates = [
+      paymentFormData.orderTransferContentTemplate,
+      paymentFormData.upgradeTransferContentTemplate,
+      paymentFormData.walletTransferContentTemplate,
+    ];
+    if (transferTemplates.some(template => !template.includes('{code}'))) {
+      toast.error('Mỗi nội dung chuyển khoản bắt buộc phải chứa {code}.');
+      return;
+    }
     if (!paymentFormData.bankCode.trim()) {
       toast.error('Ngân hàng đang thiếu mã VietQR. Vui lòng chọn lại ngân hàng.');
       return;
@@ -381,6 +397,9 @@ export const SettingsPage = () => {
       bankFeeAmount: Number(paymentFormData.bankFeeAmount) || 0,
       maxPendingOrdersPerCustomer: Math.max(0, Math.floor(Number(paymentFormData.maxPendingOrdersPerCustomer) || 0)),
       guideContent: paymentFormData.guideContent,
+      orderTransferContentTemplate: paymentFormData.orderTransferContentTemplate.trim(),
+      upgradeTransferContentTemplate: paymentFormData.upgradeTransferContentTemplate.trim(),
+      walletTransferContentTemplate: paymentFormData.walletTransferContentTemplate.trim(),
     };
     if (paymentFormData.webhookApiKey && paymentFormData.webhookApiKey.trim() !== '') {
       payload.webhookApiKey = paymentFormData.webhookApiKey.trim();
@@ -1204,7 +1223,87 @@ export const SettingsPage = () => {
                   )}
                 </div>
 
-                {/* ACCORDION 4: CẤU HÌNH HƯỚNG DẪN & CHÍNH SÁCH BOT */}
+                {/* ACCORDION 4: NỘI DUNG CHUYỂN KHOẢN */}
+                <div className="bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden transition-all duration-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsTransferContentOpen(!isTransferContentOpen)}
+                    className="w-full p-4 flex items-center justify-between bg-slate-800/40 hover:bg-slate-800/70 text-left transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-600/20 text-emerald-400 flex items-center justify-center">
+                        <MessageSquare size={18} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-white">Nội dung chuyển khoản</h4>
+                        <p className="text-xs text-slate-400">Tùy chỉnh nội dung VietQR cho từng loại giao dịch</p>
+                      </div>
+                    </div>
+                    <div className="text-slate-400">
+                      {isTransferContentOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                    </div>
+                  </button>
+
+                  {isTransferContentOpen && (
+                    <div className="p-4 space-y-4 border-t border-slate-800 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="bg-blue-950/30 border border-blue-800/40 rounded-lg p-3 flex items-start gap-2 text-xs text-blue-200 leading-relaxed">
+                        <Info size={16} className="shrink-0 mt-0.5 text-blue-400" />
+                        <span>Bắt buộc giữ nguyên <strong className="font-mono text-white">{'{code}'}</strong> để hệ thống nhận diện giao dịch. Bạn có thể đặt mã ở đầu, giữa hoặc cuối nội dung.</span>
+                      </div>
+
+                      {([
+                        ['orderTransferContentTemplate', 'Mua sản phẩm', 'ORD_A1B2C3D4'],
+                        ['upgradeTransferContentTemplate', 'Dịch vụ nâng cấp', 'UPG_A1B2C3D4'],
+                        ['walletTransferContentTemplate', 'Nạp Ví Bot', 'NAP_A1B2C3D4'],
+                      ] as const).map(([field, label, sampleCode]) => {
+                        const template = paymentFormData[field];
+                        const isValid = template.includes('{code}');
+                        return (
+                          <div key={field} className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <label className="text-xs font-semibold text-slate-200">{label}</label>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setPaymentFormData({
+                                    ...paymentFormData,
+                                    [field]: `${template}${template && !template.endsWith(' ') ? ' ' : ''}{code}`,
+                                  })}
+                                  className="text-xs text-blue-400 hover:text-blue-300"
+                                >
+                                  Chèn {'{code}'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPaymentFormData({ ...paymentFormData, [field]: '{code}' })}
+                                  className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                                >
+                                  <RotateCcw size={12} /> Mặc định
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              maxLength={100}
+                              value={template}
+                              onChange={(e) => setPaymentFormData({ ...paymentFormData, [field]: e.target.value })}
+                              className={`w-full bg-slate-800/80 border rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:ring-2 ${isValid ? 'border-slate-700 focus:ring-blue-500' : 'border-red-500 focus:ring-red-500'}`}
+                              placeholder={'Ví dụ: THANH TOAN {code}'}
+                            />
+                            <div className="flex items-center justify-between gap-3 text-xs">
+                              <span className={isValid ? 'text-slate-400' : 'text-red-400'}>
+                                {isValid ? <>Xem trước: <strong className="text-emerald-400 font-mono">{template.split('{code}').join(sampleCode)}</strong></> : <>Thiếu biến bắt buộc <strong className="font-mono">{'{code}'}</strong></>}
+                              </span>
+                              <span className="text-slate-600">{template.length}/100</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ACCORDION 5: CẤU HÌNH HƯỚNG DẪN & CHÍNH SÁCH BOT */}
                 <div className="bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden transition-all duration-200">
                   <button
                     type="button"
@@ -1256,7 +1355,7 @@ export const SettingsPage = () => {
                 <div className="pt-4 border-t border-slate-700/50">
                   <button
                     type="submit"
-                    disabled={isSavingPayment}
+                    disabled={isSavingPayment || !paymentFormData.orderTransferContentTemplate.includes('{code}') || !paymentFormData.upgradeTransferContentTemplate.includes('{code}') || !paymentFormData.walletTransferContentTemplate.includes('{code}')}
                     className="btn btn-primary w-full bg-blue-600 hover:bg-blue-500 py-3 flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/20"
                   >
                     {isSavingPayment ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
