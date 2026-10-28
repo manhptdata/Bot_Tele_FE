@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Search, PackageOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   UpgradeFormField, UpgradeService, UpgradeServicePayload,
   useCreateUpgradeServiceMutation, useDeleteUpgradeServiceMutation,
   useGetUpgradeServicesQuery, useUpdateUpgradeServiceMutation,
 } from '../api/upgradeApi';
+import { Pagination } from '../components/ui/Pagination';
 
 const blankField = (): UpgradeFormField => ({ key: '', label: '', type: 'text', placeholder: '', required: false, sensitive: false, maxLength: 255 });
 const slugify = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -26,7 +27,14 @@ const fieldsWithGeneratedKeys = (fields: UpgradeFormField[]) => {
 };
 
 export const UpgradeServicesPage = () => {
-  const { data, isLoading } = useGetUpgradeServicesQuery({ page: 0, size: 100 });
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(10);
+  const [keyword, setKeyword] = useState('');
+  const { data, isLoading, isFetching } = useGetUpgradeServicesQuery({
+    keyword: keyword.trim() || undefined,
+    page,
+    size: pageSize,
+  });
   const [createService] = useCreateUpgradeServiceMutation();
   const [updateService] = useUpdateUpgradeServiceMutation();
   const [deleteService] = useDeleteUpgradeServiceMutation();
@@ -86,16 +94,36 @@ export const UpgradeServicesPage = () => {
       <div><h1 className="text-2xl font-bold text-white">Gói nâng cấp</h1><p className="text-sm text-slate-400 mt-1">Danh mục dịch vụ độc lập với sản phẩm trong kho.</p></div>
       <button onClick={() => open()} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-xl text-white flex items-center gap-2"><Plus size={18}/>Thêm dịch vụ</button>
     </div>
-    <div className="glass border border-slate-800 rounded-2xl overflow-hidden">
+    <div className="glass border border-slate-800 rounded-2xl overflow-hidden shadow-xl shadow-black/10">
+      <div className="p-4 border-b border-slate-800 bg-slate-900/35 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-xl">
+          <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input value={keyword} onChange={e => { setKeyword(e.target.value); setPage(0); }} placeholder="Tìm theo tên hoặc mã dịch vụ..." className="input w-full pl-10" />
+        </div>
+        <div className="flex items-center gap-2 text-sm text-slate-400">
+          <PackageOpen size={17} className="text-blue-400" />
+          <span><strong className="text-white">{data?.totalElements || 0}</strong> gói dịch vụ</span>
+          {isFetching && !isLoading && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
+        </div>
+      </div>
       {isLoading ? <div className="p-8 text-slate-400">Đang tải...</div> : services.length === 0 ? <div className="p-10 text-center text-slate-500">Chưa có dịch vụ nâng cấp.</div> :
       <div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-900/70 text-slate-400"><tr><th className="text-left p-4">Dịch vụ</th><th className="text-left p-4">Giá</th><th className="text-left p-4">Form</th><th className="text-left p-4">Trạng thái</th><th className="p-4"/></tr></thead>
-      <tbody>{services.map(s => <tr key={s.id} className="border-t border-slate-800 text-slate-200">
+      <tbody>{services.map(s => <tr key={s.id} className="border-t border-slate-800 text-slate-200 hover:bg-blue-500/5 transition-colors">
         <td className="p-4"><div className="font-semibold text-white">{s.name}</div><div className="text-xs text-slate-500">{s.slug}</div></td>
         <td className="p-4 font-semibold text-emerald-400">{Number(s.price).toLocaleString('vi-VN')}đ</td>
         <td className="p-4">{s.formSchema?.fields?.length || 0} trường · tối đa {s.maxQuantityPerOrder}</td>
         <td className="p-4"><span className={`px-2 py-1 rounded-lg text-xs ${s.isActive ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700 text-slate-400'}`}>{s.isActive ? 'Đang mở' : 'Đã ẩn'}</span></td>
         <td className="p-4"><div className="flex justify-end gap-2"><button title="Sửa" onClick={() => open(s)} className="p-2 hover:bg-slate-700 rounded-lg"><Pencil size={16}/></button><button title="Ngừng dịch vụ" onClick={async()=>{if(confirm('Ngừng hiển thị dịch vụ này?')){await deleteService(s.id);toast.success('Đã ngừng dịch vụ')}}} className="p-2 hover:bg-rose-500/20 text-rose-400 rounded-lg"><Trash2 size={16}/></button></div></td>
       </tr>)}</tbody></table></div>}
+      {data && data.totalElements > 0 && <Pagination
+        currentPage={data.pageNumber}
+        totalPages={data.totalPages}
+        totalElements={data.totalElements}
+        pageSize={data.pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={size => { setPageSize(size); setPage(0); }}
+        pageSizeOptions={[10, 20, 50, 100]}
+      />}
     </div>
 
     {modal && <div className="fixed inset-0 z-50 bg-black/70 flex items-start justify-center p-4 overflow-y-auto"><form onSubmit={submit} className="w-full max-w-4xl glass bg-slate-950 border border-slate-700 rounded-2xl my-6">
