@@ -29,9 +29,11 @@ import {
   useHardDeleteVoucherMutation,
   Voucher,
   VoucherCreateRequest,
+  VoucherScope,
 } from '../api/voucherApi';
 import { useGetProductsQuery } from '../api/productApi';
 import { useGetCustomersQuery } from '../api/customerApi';
+import { useGetUpgradeServicesQuery } from '../api/upgradeApi';
 import { Pagination } from '../components/ui/Pagination';
 import { DateTimePicker } from '../components/ui/DateTimePicker';
 import { CurrencyInput } from '../components/ui/CurrencyInput';
@@ -52,9 +54,11 @@ export const VouchersPage = () => {
 
   const { data: productPage } = useGetProductsQuery({ size: 100 });
   const { data: customerPage } = useGetCustomersQuery({ size: 100 });
+  const { data: upgradeServicePage } = useGetUpgradeServicesQuery({ size: 100 });
 
   const allProducts = productPage?.content || [];
   const allCustomers = customerPage?.content || [];
+  const allUpgradeServices = upgradeServicePage?.content || [];
 
   const [createVoucher, { isLoading: isCreating }] = useCreateVoucherMutation();
   const [updateVoucher, { isLoading: isUpdating }] = useUpdateVoucherMutation();
@@ -68,6 +72,7 @@ export const VouchersPage = () => {
 
   // Search inside modal
   const [productSearch, setProductSearch] = useState('');
+  const [upgradeServiceSearch, setUpgradeServiceSearch] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
 
   // Form State
@@ -78,13 +83,14 @@ export const VouchersPage = () => {
     discountValue: number | '';
     maxDiscountAmount: number | '';
     minOrderAmount: number | '';
-    scope: 'ALL' | 'PRODUCTS';
+    scope: VoucherScope;
     target: 'PUBLIC' | 'SPECIFIC';
     totalQuantity: number | '';
     maxUsagePerCustomer: number | '';
     startDate: string;
     endDate: string;
     productIds: number[];
+    upgradeServiceIds: number[];
     customerIds: number[];
   }>({
     code: '',
@@ -100,11 +106,13 @@ export const VouchersPage = () => {
     startDate: '',
     endDate: '',
     productIds: [],
+    upgradeServiceIds: [],
     customerIds: [],
   });
 
   const handleOpenModal = (voucher?: Voucher) => {
     setProductSearch('');
+    setUpgradeServiceSearch('');
     setCustomerSearch('');
     if (voucher) {
       setEditingVoucher(voucher);
@@ -122,6 +130,7 @@ export const VouchersPage = () => {
         startDate: voucher.startDate ? voucher.startDate.slice(0, 16) : '',
         endDate: voucher.endDate ? voucher.endDate.slice(0, 16) : '',
         productIds: voucher.productIds || [],
+        upgradeServiceIds: voucher.upgradeServiceIds || [],
         customerIds: voucher.customerIds || [],
       });
     } else {
@@ -140,6 +149,7 @@ export const VouchersPage = () => {
         startDate: '',
         endDate: '',
         productIds: [],
+        upgradeServiceIds: [],
         customerIds: [],
       });
     }
@@ -154,6 +164,14 @@ export const VouchersPage = () => {
     }
     if (formData.discountValue === '' || Number(formData.discountValue) <= 0) {
       toast.error('Giá trị giảm phải lớn hơn 0');
+      return;
+    }
+    if (formData.scope === 'PRODUCTS' && formData.productIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một sản phẩm');
+      return;
+    }
+    if (formData.scope === 'UPGRADE_SERVICES' && formData.upgradeServiceIds.length === 0) {
+      toast.error('Vui lòng chọn ít nhất một dịch vụ nâng cấp');
       return;
     }
 
@@ -174,6 +192,7 @@ export const VouchersPage = () => {
             startDate: formData.startDate ? formData.startDate + ':00' : null,
             endDate: formData.endDate ? formData.endDate + ':00' : null,
             productIds: formData.scope === 'PRODUCTS' ? formData.productIds : [],
+            upgradeServiceIds: formData.scope === 'UPGRADE_SERVICES' ? formData.upgradeServiceIds : [],
             customerIds: formData.target === 'SPECIFIC' ? formData.customerIds : [],
           },
         }).unwrap();
@@ -193,6 +212,7 @@ export const VouchersPage = () => {
           startDate: formData.startDate ? formData.startDate + ':00' : undefined,
           endDate: formData.endDate ? formData.endDate + ':00' : undefined,
           productIds: formData.scope === 'PRODUCTS' ? formData.productIds : [],
+          upgradeServiceIds: formData.scope === 'UPGRADE_SERVICES' ? formData.upgradeServiceIds : [],
           customerIds: formData.target === 'SPECIFIC' ? formData.customerIds : [],
         };
         await createVoucher(payload).unwrap();
@@ -267,6 +287,15 @@ export const VouchersPage = () => {
     }));
   };
 
+  const toggleUpgradeServiceSelection = (serviceId: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      upgradeServiceIds: prev.upgradeServiceIds.includes(serviceId)
+        ? prev.upgradeServiceIds.filter((id) => id !== serviceId)
+        : [...prev.upgradeServiceIds, serviceId],
+    }));
+  };
+
   const vouchers = voucherPage?.content || [];
 
   // Filtered products & customers for modal
@@ -274,6 +303,12 @@ export const VouchersPage = () => {
     if (!productSearch.trim()) return allProducts;
     return allProducts.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()));
   }, [allProducts, productSearch]);
+
+  const filteredUpgradeServices = useMemo(() => {
+    if (!upgradeServiceSearch.trim()) return allUpgradeServices;
+    const term = upgradeServiceSearch.toLowerCase();
+    return allUpgradeServices.filter((service) => service.name.toLowerCase().includes(term));
+  }, [allUpgradeServices, upgradeServiceSearch]);
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return allCustomers;
@@ -510,9 +545,21 @@ export const VouchersPage = () => {
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-300 bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md">
                             <Layers className="w-3 h-3 text-indigo-400" /> Toàn bộ SP
                           </span>
-                        ) : (
+                        ) : v.scope === 'PRODUCTS' ? (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-300 bg-blue-500/10 border border-blue-500/30 px-2.5 py-1 rounded-md">
                             <Tag className="w-3 h-3 text-blue-400" /> {v.productIds?.length || 0} sản phẩm
+                          </span>
+                        ) : v.scope === 'ALL_UPGRADES' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-300 bg-violet-500/10 border border-violet-500/30 px-2.5 py-1 rounded-md">
+                            <Layers className="w-3 h-3 text-violet-400" /> Toàn bộ nâng cấp
+                          </span>
+                        ) : v.scope === 'UPGRADE_SERVICES' ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-300 bg-violet-500/10 border border-violet-500/30 px-2.5 py-1 rounded-md">
+                            <Tag className="w-3 h-3 text-violet-400" /> {v.upgradeServiceIds?.length || 0} dịch vụ
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-md">
+                            <Layers className="w-3 h-3 text-emerald-400" /> Toàn bộ shop
                           </span>
                         )}
                       </td>
@@ -819,33 +866,22 @@ export const VouchersPage = () => {
                 />
               </div>
 
-              {/* Phạm vi sản phẩm */}
+              {/* Phạm vi áp dụng */}
               <div className="space-y-2 border-t border-slate-700/60 pt-4">
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                  Phạm vi áp dụng sản phẩm
+                  Phạm vi áp dụng
                 </label>
-                <div className="flex gap-6 text-sm">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="scope"
-                      checked={formData.scope === 'ALL'}
-                      onChange={() => setFormData({ ...formData, scope: 'ALL' })}
-                      className="text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700"
-                    />
-                    <span className="text-slate-300">Toàn bộ sản phẩm trong shop</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="scope"
-                      checked={formData.scope === 'PRODUCTS'}
-                      onChange={() => setFormData({ ...formData, scope: 'PRODUCTS' })}
-                      className="text-indigo-600 focus:ring-indigo-500 bg-slate-800 border-slate-700"
-                    />
-                    <span className="text-slate-300">Chỉ định sản phẩm ({formData.productIds.length} đã chọn)</span>
-                  </label>
-                </div>
+                <select
+                  value={formData.scope}
+                  onChange={(e) => setFormData({ ...formData, scope: e.target.value as VoucherScope })}
+                  className="w-full px-3.5 py-2.5 text-sm bg-slate-800/80 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="ALL">Toàn bộ sản phẩm</option>
+                  <option value="PRODUCTS">Sản phẩm chỉ định</option>
+                  <option value="ALL_UPGRADES">Toàn bộ dịch vụ nâng cấp</option>
+                  <option value="UPGRADE_SERVICES">Dịch vụ nâng cấp chỉ định</option>
+                  <option value="ALL_CHANNELS">Tất cả sản phẩm và dịch vụ nâng cấp</option>
+                </select>
 
                 {formData.scope === 'PRODUCTS' && (
                   <div className="mt-2.5 p-3 bg-slate-800/50 rounded-xl border border-slate-700/70 space-y-2">
@@ -880,6 +916,46 @@ export const VouchersPage = () => {
                             />
                             <span className="font-medium flex-1">{p.name}</span>
                             <span className="text-slate-400 font-mono">({p.price.toLocaleString()}đ)</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {formData.scope === 'UPGRADE_SERVICES' && (
+                  <div className="mt-2.5 p-3 bg-slate-800/50 rounded-xl border border-slate-700/70 space-y-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Tìm dịch vụ nâng cấp..."
+                        value={upgradeServiceSearch}
+                        onChange={(e) => setUpgradeServiceSearch(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-900/80 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="max-h-36 overflow-y-auto space-y-1 custom-scrollbar">
+                      {filteredUpgradeServices.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-2">Không tìm thấy dịch vụ nâng cấp nào</p>
+                      ) : (
+                        filteredUpgradeServices.map((service) => (
+                          <label
+                            key={service.id}
+                            className={`flex items-center gap-2.5 text-xs p-2 rounded-lg cursor-pointer transition-colors ${
+                              formData.upgradeServiceIds.includes(service.id)
+                                ? 'bg-violet-600/20 text-violet-300 border border-violet-500/30'
+                                : 'text-slate-300 hover:bg-slate-700/40'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={formData.upgradeServiceIds.includes(service.id)}
+                              onChange={() => toggleUpgradeServiceSelection(service.id)}
+                              className="rounded text-violet-600 focus:ring-violet-500 bg-slate-800 border-slate-700"
+                            />
+                            <span className="font-medium flex-1">{service.name}</span>
+                            <span className="text-slate-400 font-mono">({service.price.toLocaleString()}đ)</span>
                           </label>
                         ))
                       )}

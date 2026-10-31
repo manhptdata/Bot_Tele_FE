@@ -1,6 +1,8 @@
 import { baseApi } from './baseApi';
 import { PageResponse } from '../types/pagination';
 
+export type VoucherScope = 'ALL' | 'PRODUCTS' | 'ALL_UPGRADES' | 'UPGRADE_SERVICES' | 'ALL_CHANNELS';
+
 export interface Voucher {
   id: number;
   code: string;
@@ -9,7 +11,7 @@ export interface Voucher {
   discountValue: number;
   maxDiscountAmount?: number;
   minOrderAmount?: number;
-  scope: 'ALL' | 'PRODUCTS';
+  scope: VoucherScope;
   target: 'PUBLIC' | 'SPECIFIC';
   totalQuantity?: number;
   usedCount: number;
@@ -21,6 +23,7 @@ export interface Voucher {
   deletedAt?: string;
   createdAt: string;
   productIds: number[];
+  upgradeServiceIds: number[];
   customerIds: number[];
 }
 
@@ -31,13 +34,14 @@ export interface VoucherCreateRequest {
   discountValue: number;
   maxDiscountAmount?: number;
   minOrderAmount?: number;
-  scope: 'ALL' | 'PRODUCTS';
+  scope: VoucherScope;
   target: 'PUBLIC' | 'SPECIFIC';
   totalQuantity?: number;
   maxUsagePerCustomer?: number;
   startDate?: string;
   endDate?: string;
   productIds?: number[];
+  upgradeServiceIds?: number[];
   customerIds?: number[];
 }
 
@@ -47,13 +51,14 @@ export interface VoucherUpdateRequest {
   discountValue?: number;
   maxDiscountAmount?: number | null;
   minOrderAmount?: number;
-  scope?: 'ALL' | 'PRODUCTS';
+  scope?: VoucherScope;
   target?: 'PUBLIC' | 'SPECIFIC';
   totalQuantity?: number | null;
   maxUsagePerCustomer?: number;
   startDate?: string | null;
   endDate?: string | null;
   productIds?: number[];
+  upgradeServiceIds?: number[];
   customerIds?: number[];
 }
 

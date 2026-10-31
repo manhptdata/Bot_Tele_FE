@@ -35,7 +35,7 @@ export interface UpgradeOrder {
   id: number; orderCode: string; serviceId: number; serviceName: string;
   customerTelegramId: number; customerUsername?: string; customerFullName?: string;
   unitPrice: number; quantity: number; subtotalAmount: number; feeAmount: number;
-  discountAmount: number; totalAmount: number; paymentMethod: string; paymentStatus: string;
+  discountAmount: number; voucherCode?: string; totalAmount: number; paymentMethod: string; paymentStatus: string;
   serviceStatus: string; formSchema: { fields: UpgradeFormField[] }; assignedAdminId?: number;
   correctionReason?: string; refundReason?: string; refundReference?: string;
   paidAt?: string; submittedAt?: string; processingAt?: string; completedAt?: string;
