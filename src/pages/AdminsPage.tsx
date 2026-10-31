@@ -74,6 +74,7 @@ export const AdminsPage = () => {
     zalo: '',
     telegramUsername: '',
     isSupportContact: true,
+    canManageUpgradeOrders: false,
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -83,7 +84,12 @@ export const AdminsPage = () => {
   const isCreatingAdmin = !editingUser && formData.role === 'ADMIN';
   const isPromotingToAdmin = Boolean(editingUser && editingUser.role !== 'ADMIN' && formData.role === 'ADMIN');
   const isResettingPassword = Boolean(editingUser && formData.password.trim() !== '');
-  const isSensitiveAction = isCreatingAdmin || isPromotingToAdmin || isResettingPassword;
+  const isChangingUpgradePermission = Boolean(editingUser
+    && (editingUser.role === 'ADMIN' || Boolean(editingUser.canManageUpgradeOrders))
+      !== (formData.role === 'ADMIN' || formData.canManageUpgradeOrders));
+  const isGrantingUpgradePermissionOnCreate = !editingUser && formData.canManageUpgradeOrders;
+  const isSensitiveAction = isCreatingAdmin || isPromotingToAdmin || isResettingPassword
+    || isChangingUpgradePermission || isGrantingUpgradePermissionOnCreate;
 
   // Access Control
   if (currentUser?.role !== 'ADMIN') {
@@ -112,6 +118,7 @@ export const AdminsPage = () => {
         zalo: user.zalo || '',
         telegramUsername: user.telegramUsername || '',
         isSupportContact: user.isSupportContact !== undefined ? user.isSupportContact : true,
+        canManageUpgradeOrders: user.role === 'ADMIN' || Boolean(user.canManageUpgradeOrders),
       });
     } else {
       setEditingUser(null);
@@ -126,6 +133,7 @@ export const AdminsPage = () => {
         zalo: '',
         telegramUsername: '',
         isSupportContact: true,
+        canManageUpgradeOrders: false,
       });
     }
     setIsModalOpen(true);
@@ -153,6 +161,7 @@ export const AdminsPage = () => {
             zalo: formData.zalo.trim() || undefined,
             telegramUsername: formData.telegramUsername.trim() || undefined,
             isSupportContact: formData.isSupportContact,
+            canManageUpgradeOrders: formData.role === 'ADMIN' || formData.canManageUpgradeOrders,
             adminPassword: adminPassword.trim() || undefined,
           }
         }).unwrap();
@@ -168,6 +177,7 @@ export const AdminsPage = () => {
           zalo: formData.zalo.trim() || undefined,
           telegramUsername: formData.telegramUsername.trim() || undefined,
           isSupportContact: formData.isSupportContact,
+          canManageUpgradeOrders: formData.role === 'ADMIN' || formData.canManageUpgradeOrders,
           adminPassword: adminPassword.trim() || undefined,
         }).unwrap();
         toast.success('Thêm tài khoản thành công!');
@@ -688,6 +698,33 @@ export const AdminsPage = () => {
                 </div>
               </div>
 
+              <div className="pt-2">
+                <label className={`flex items-center gap-3 p-3 rounded-xl border transition-colors ${
+                  formData.role === 'ADMIN'
+                    ? 'bg-emerald-500/10 border-emerald-500/30 cursor-default'
+                    : 'bg-slate-800/40 border-slate-700/60 cursor-pointer hover:bg-slate-800/70'
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={formData.role === 'ADMIN' || formData.canManageUpgradeOrders}
+                    disabled={formData.role === 'ADMIN'}
+                    onChange={(e) => setFormData({ ...formData, canManageUpgradeOrders: e.target.checked })}
+                    className="w-4 h-4 rounded border-slate-600 text-emerald-600 focus:ring-emerald-500/40 bg-slate-700 disabled:opacity-70"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-slate-200 block">Xử lý đơn nâng cấp</span>
+                    <span className="text-xs text-slate-400">
+                      ADMIN luôn có quyền. Khi bật cho STAFF, nhân viên được xem, nhận xử lý và hoàn thành đơn nâng cấp trên Web và Telegram.
+                    </span>
+                    {formData.role === 'STAFF' && formData.canManageUpgradeOrders && (
+                      <span className="text-[11px] text-amber-300 block mt-1">
+                        Muốn duyệt từ Telegram, nhân viên phải nhập Telegram Chat ID cá nhân trong Hồ sơ cá nhân.
+                      </span>
+                    )}
+                  </div>
+                </label>
+              </div>
+
               {/* Step-Up Password Verification Box */}
               {isSensitiveAction && (
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2 animate-in fade-in duration-200">
@@ -718,6 +755,8 @@ export const AdminsPage = () => {
                     {isCreatingAdmin && "Bắt buộc xác thực mật khẩu Super Admin khi tạo tài khoản ADMIN mới."}
                     {isPromotingToAdmin && "Chỉ Super Admin được nâng quyền nhân viên lên ADMIN, bắt buộc xác thực mật khẩu."}
                     {isResettingPassword && !isPromotingToAdmin && "Bắt buộc xác thực mật khẩu khi đặt lại mật khẩu cho tài khoản này."}
+                    {isChangingUpgradePermission && !isPromotingToAdmin && !isResettingPassword && "Bắt buộc xác thực mật khẩu khi thay đổi quyền xử lý đơn nâng cấp."}
+                    {isGrantingUpgradePermissionOnCreate && !isCreatingAdmin && "Bắt buộc xác thực mật khẩu khi cấp quyền xử lý đơn nâng cấp cho nhân viên mới."}
                   </p>
                 </div>
               )}

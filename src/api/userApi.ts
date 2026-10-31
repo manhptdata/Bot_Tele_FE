@@ -15,6 +15,7 @@ export interface User {
   zalo?: string;
   telegramUsername?: string;
   isSupportContact?: boolean;
+  canManageUpgradeOrders?: boolean;
   createdAt: string;
 }
 
@@ -38,6 +39,7 @@ export interface UserCreateRequest {
   zalo?: string;
   telegramUsername?: string;
   isSupportContact?: boolean;
+  canManageUpgradeOrders?: boolean;
   adminPassword?: string;
 }
 
@@ -52,6 +54,7 @@ export interface UserUpdateRequest {
   zalo?: string;
   telegramUsername?: string;
   isSupportContact?: boolean;
+  canManageUpgradeOrders?: boolean;
   adminPassword?: string;
 }
 

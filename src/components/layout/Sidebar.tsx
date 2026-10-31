@@ -130,7 +130,13 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           // Nếu là menu có submenu
           if (item.children) {
             const visibleChildren = item.children.filter(
-              (child) => !child.roles || (currentUser && child.roles.includes(currentUser.role)),
+              (child) => {
+                if (child.roles && (!currentUser || !child.roles.includes(currentUser.role))) return false;
+                if (child.path === '/upgrade-orders') {
+                  return currentUser?.role === 'ADMIN' || Boolean((currentUser as any)?.canManageUpgradeOrders);
+                }
+                return true;
+              },
             );
             if (visibleChildren.length === 0) return null;
             const hasActiveChild = visibleChildren.some((child) => location.pathname.startsWith(child.path));
