@@ -53,6 +53,11 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
         const notif = JSON.parse(event.data);
         // Tự động làm mới cache dữ liệu thông báo và số lượng chưa đọc
         dispatch(notificationApi.util.invalidateTags(['Notification']));
+
+        // Keep upgrade-order queries in sync with real-time notifications.
+        if (['UPGRADE_ORDER_SUBMITTED', 'UPGRADE_ORDER_RESUBMITTED', 'UPGRADE_PAYMENT'].includes(notif.type)) {
+          dispatch(baseApi.util.invalidateTags(['UpgradeOrder']));
+        }
         
         // Phát âm thanh chuông báo
         try {
